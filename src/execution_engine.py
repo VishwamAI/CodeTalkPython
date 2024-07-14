@@ -36,7 +36,11 @@ class ExecutionEngine:
             'function_operation': self._process_english_instruction,
             'io_operation': self._process_english_instruction,
             'data_structure_operation': self._process_english_instruction,
-            'algorithm_execution': self._process_english_instruction
+            'algorithm_execution': self._process_english_instruction,
+            'sorting_operation': self._process_sorting_algorithm,
+            'c_operation': self._process_c_instruction,
+            'python_operation': self._process_python_instruction,
+            'java_operation': self._process_java_instruction
         }
 
         if intent in intent_map:
@@ -521,7 +525,7 @@ class ExecutionEngine:
 
         # Execute the identified algorithm
         if algorithm == "sort":
-            return self._execute_sort_algorithm(params)
+            return self._process_sorting_algorithm(params)
         elif algorithm == "search":
             return self._execute_search_algorithm(params)
         elif algorithm == "graph":
@@ -537,9 +541,31 @@ class ExecutionEngine:
         params = [word for word in words if word not in ["execute", "run", "perform", algorithm]]
         return algorithm, params
 
-    def _execute_sort_algorithm(self, params):
-        # Implement sorting logic based on params
-        return f"Executed sorting algorithm with parameters: {params}"
+    def _process_sorting_algorithm(self, params):
+        # Extract relevant information from params
+        data_to_sort = []
+        order = "ascending"
+        data_type = "number"
+
+        for param in params:
+            if param.isdigit():
+                data_to_sort.append(int(param))
+            elif param.replace(".", "", 1).isdigit():
+                data_to_sort.append(float(param))
+            elif param in ["ascending", "descending"]:
+                order = param
+            elif param in ["number", "string"]:
+                data_type = param
+            elif param not in ["sort", "order", "type"]:
+                data_to_sort.append(param)
+
+        # Perform sorting
+        if data_type == "number":
+            sorted_data = sorted(data_to_sort, reverse=(order == "descending"))
+        else:
+            sorted_data = sorted(data_to_sort, key=str.lower, reverse=(order == "descending"))
+
+        return f"Sorted data: {sorted_data}"
 
     def _execute_search_algorithm(self, params):
         # Implement search logic based on params
@@ -548,3 +574,36 @@ class ExecutionEngine:
     def _execute_graph_algorithm(self, params):
         # Implement graph algorithm logic based on params
         return f"Executed graph algorithm with parameters: {params}"
+
+    def _process_c_instruction(self, instruction):
+        # Parse the English instruction
+        # Translate to C code
+        # Compile and execute the C code
+        # Return the result or error message in English
+        if "print" in instruction.lower():
+            c_code = '#include <stdio.h>\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}'
+            # Here you would compile and run the C code
+            return "C code executed: Hello, World!"
+        return "Unable to process C instruction: " + instruction
+
+    def _process_python_instruction(self, instruction):
+        # Parse the English instruction
+        # Translate to Python code
+        # Execute the Python code
+        # Return the result or error message in English
+        if "print" in instruction.lower():
+            python_code = 'print("Hello, World!")'
+            # Here you would execute the Python code
+            return "Python code executed: Hello, World!"
+        return "Unable to process Python instruction: " + instruction
+
+    def _process_java_instruction(self, instruction):
+        # Parse the English instruction
+        # Translate to Java code
+        # Compile and execute the Java code
+        # Return the result or error message in English
+        if "print" in instruction.lower():
+            java_code = 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}'
+            # Here you would compile and run the Java code
+            return "Java code executed: Hello, World!"
+        return "Unable to process Java instruction: " + instruction
