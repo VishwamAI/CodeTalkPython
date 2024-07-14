@@ -34,6 +34,12 @@ class IntentRecognizer:
         self.stop_words = set(stopwords.words('english'))
         self.lemmatizer = WordNetLemmatizer()
         self.sia = SentimentIntensityAnalyzer()
+        self.language_keywords = {
+            'c': ['printf', 'scanf', 'malloc', 'free', 'struct', 'typedef'],
+            'cpp': ['cout', 'cin', 'vector', 'class', 'namespace', 'template'],
+            'python': ['def', 'class', 'import', 'from', 'with', 'as'],
+            'java': ['public', 'private', 'class', 'interface', 'extends', 'implements']
+        }
 
     def recognize_intent(self, intent_data, context):
         """
@@ -50,14 +56,23 @@ class IntentRecognizer:
         annotations = self._get_corenlp_annotations(text)
 
         semantic_intent = self._analyze_semantic_intent(annotations)
-        confidence_score = self._calculate_confidence(semantic_intent, annotations)
+        language = self.recognize_language_specific_intent(annotations)
+        confidence_score = self._calculate_confidence(semantic_intent, annotations, language)
         relevant_entities = self._extract_relevant_entities(annotations, semantic_intent)
 
         return {
             'primary_intent': semantic_intent,
+            'language': language,
             'confidence_score': confidence_score,
             'relevant_entities': relevant_entities
         }
+
+    def recognize_language_specific_intent(self, annotations):
+        tokens = [token['word'].lower() for token in annotations['sentences'][0]['tokens']]
+        for language, keywords in self.language_keywords.items():
+            if any(keyword in tokens for keyword in keywords):
+                return language
+        return 'generic'
 
     def _analyze_semantic_intent(self, annotations):
         """
@@ -133,9 +148,9 @@ class IntentRecognizer:
 
         return 'unknown'
 
-    def _calculate_confidence(self, intent, annotations):
+    def _calculate_confidence(self, intent, annotations, language):
         """
-        Calculate the confidence score based on dependency parsing and sentiment analysis.
+        Calculate the confidence score based on dependency parsing, sentiment analysis, and language-specific factors.
         """
         if intent == 'unknown':
             return 0.0
@@ -150,7 +165,9 @@ class IntentRecognizer:
         sentiment_scores = self.sia.polarity_scores(text)
         sentiment_intensity = sentiment_scores['compound']
 
-        confidence = (dep_score * 0.7) + (abs(sentiment_intensity) * 0.3)
+        language_score = self._calculate_language_specific_confidence(tokens, language)
+
+        confidence = (dep_score * 0.5) + (abs(sentiment_intensity) * 0.2) + (language_score * 0.3)
         return min(confidence, 1.0)
 
     def _extract_relevant_entities(self, annotations, intent):
@@ -183,3 +200,40 @@ class IntentRecognizer:
 
         return relevant_entities
 
+    def recognize_c_intent(self, tokens, context):
+        c_specific_keywords = ['pointer', 'memory', 'allocation', 'struct', 'union', 'typedef']
+        if any(keyword in tokens for keyword in c_specific_keywords):
+            return 'c_specific'
+        return 'generic'
+
+    def recognize_cpp_intent(self, tokens, context):
+        cpp_specific_keywords = ['object', 'inheritance', 'polymorphism', 'encapsulation', 'template']
+        if any(keyword in tokens for keyword in cpp_specific_keywords):
+            return 'cpp_specific'
+        return 'generic'
+
+    def recognize_python_intent(self, tokens, context):
+        python_specific_keywords = ['list comprehension', 'generator', 'decorator', 'lambda', 'dictionary']
+        if any(keyword in tokens for keyword in python_specific_keywords):
+            return 'python_specific'
+        return 'generic'
+
+    def recognize_java_intent(self, tokens, context):
+        java_specific_keywords = ['interface', 'abstract class', 'package', 'garbage collection', 'jvm']
+        if any(keyword in tokens for keyword in java_specific_keywords):
+            return 'java_specific'
+        return 'generic'
+
+    def _calculate_language_specific_confidence(self, tokens, language):
+        language_specific_keywords = {
+            'c': ['pointer', 'memory', 'allocation', 'struct', 'union', 'typedef'],
+            'cpp': ['object', 'inheritance', 'polymorphism', 'encapsulation', 'template'],
+            'python': ['list comprehension', 'generator', 'decorator', 'lambda', 'dictionary'],
+            'java': ['interface', 'abstract class', 'package', 'garbage collection', 'jvm']
+        }
+
+        if language in language_specific_keywords:
+            keywords = language_specific_keywords[language]
+            matches = sum(1 for keyword in keywords if keyword in tokens)
+            return min(matches / len(keywords), 1.0)
+        return 0.0
