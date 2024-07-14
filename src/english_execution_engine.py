@@ -73,6 +73,32 @@ class EnglishExecutionEngine:
                 'arg2': int(match.group(4))
             }
 
+        # List operations
+        elif match := re.match(r"(Create|Append to|Remove from|Get from) list '(\w+)'(?: (with|item|at index) (.+))?", instruction):
+            operation = match.group(1).lower()
+            list_name = match.group(2)
+            item_or_index = self._parse_value(match.group(4)) if match.group(4) else None
+            return {
+                'operation': 'list_operation',
+                'list_operation': operation,
+                'list_name': list_name,
+                'item' if operation in ['append', 'remove'] else 'index': item_or_index
+            }
+
+        # Dictionary operations
+        elif match := re.match(r"(Create|Set|Get|Remove) (?:from )?dictionary '(\w+)'(?: (?:with key|key) '(.+)'(?: (?:and|to) value '(.+)')?)?", instruction):
+            operation = match.group(1).lower()
+            dict_name = match.group(2)
+            key = self._parse_value(match.group(3)) if match.group(3) else None
+            value = self._parse_value(match.group(4)) if match.group(4) else None
+            return {
+                'operation': 'dictionary_operation',
+                'dict_operation': operation,
+                'dict_name': dict_name,
+                'key': key,
+                'value': value
+            }
+
         else:
             raise ValueError(f"Unrecognized instruction: {instruction}")
 
@@ -129,6 +155,20 @@ class EnglishExecutionEngine:
                 parsed_instruction['function_name'],
                 parsed_instruction['arg1'],
                 parsed_instruction['arg2']
+            )
+        elif operation == 'list_operation':
+            return self.handle_list_operation(
+                parsed_instruction['operation'],
+                parsed_instruction['list_name'],
+                parsed_instruction.get('item'),
+                parsed_instruction.get('index')
+            )
+        elif operation == 'dictionary_operation':
+            return self.handle_dictionary_operation(
+                parsed_instruction['operation'],
+                parsed_instruction['dict_name'],
+                parsed_instruction.get('key'),
+                parsed_instruction.get('value')
             )
         else:
             raise ValueError(f"Unknown operation: {operation}")
@@ -257,15 +297,61 @@ class EnglishExecutionEngine:
         except Exception as e:
             print(f"Error in arithmetic operation: {str(e)}")
 
-    def handle_list_operation(self, operation: str, list_name: str, item: Any = None) -> None:
-        """Perform list operations (create, append, remove)."""
-        # TODO: Implement list operation logic
-        pass
+    def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
+        """Perform list operations (create, append, remove, get)."""
+        try:
+            if operation == "create":
+                self.variables[list_name] = []
+                print(f"Created a new list '{list_name}'")
+            elif operation == "append":
+                if list_name not in self.variables:
+                    raise ValueError(f"List '{list_name}' does not exist")
+                self.variables[list_name].append(item)
+                print(f"Appended {item} to list '{list_name}'")
+            elif operation == "remove":
+                if list_name not in self.variables:
+                    raise ValueError(f"List '{list_name}' does not exist")
+                self.variables[list_name].remove(item)
+                print(f"Removed {item} from list '{list_name}'")
+            elif operation == "get":
+                if list_name not in self.variables:
+                    raise ValueError(f"List '{list_name}' does not exist")
+                if index is None:
+                    raise ValueError("Index is required for 'get' operation")
+                return self.variables[list_name][index]
+            else:
+                raise ValueError(f"Unknown list operation: {operation}")
+        except Exception as e:
+            print(f"Error in list operation: {str(e)}")
 
-    def handle_dictionary_operation(self, operation: str, dict_name: str, key: Any = None, value: Any = None) -> None:
-        """Perform dictionary operations."""
-        # TODO: Implement dictionary operation logic
-        pass
+    def handle_dictionary_operation(self, operation: str, dict_name: str, key: Any = None, value: Any = None) -> Any:
+        """Perform dictionary operations (create, set, get, remove)."""
+        try:
+            if operation == "create":
+                self.variables[dict_name] = {}
+                print(f"Created a new dictionary '{dict_name}'")
+            elif operation == "set":
+                if dict_name not in self.variables:
+                    raise ValueError(f"Dictionary '{dict_name}' does not exist")
+                self.variables[dict_name][key] = value
+                print(f"Set key '{key}' to value '{value}' in dictionary '{dict_name}'")
+            elif operation == "get":
+                if dict_name not in self.variables:
+                    raise ValueError(f"Dictionary '{dict_name}' does not exist")
+                if key not in self.variables[dict_name]:
+                    raise KeyError(f"Key '{key}' not found in dictionary '{dict_name}'")
+                return self.variables[dict_name][key]
+            elif operation == "remove":
+                if dict_name not in self.variables:
+                    raise ValueError(f"Dictionary '{dict_name}' does not exist")
+                if key not in self.variables[dict_name]:
+                    raise KeyError(f"Key '{key}' not found in dictionary '{dict_name}'")
+                del self.variables[dict_name][key]
+                print(f"Removed key '{key}' from dictionary '{dict_name}'")
+            else:
+                raise ValueError(f"Unknown dictionary operation: {operation}")
+        except Exception as e:
+            print(f"Error in dictionary operation: {str(e)}")
 
     def handle_input_output(self, operation: str, value: Any = None) -> Any:
         """Handle user input and output operations."""
