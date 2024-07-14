@@ -297,38 +297,254 @@ class ExecutionEngine:
             return f"I'm sorry, I couldn't manage the variable. There was an error: {str(e)}"
 
     def _process_english_instruction(self, entities):
+        from nltk import word_tokenize, pos_tag
+        from nltk.chunk import ne_chunk
+
         instruction = entities.get('instruction', '')
         intent = entities.get('primary_intent', '')
 
+        # Use NLTK for basic NLP processing
+        tokens = word_tokenize(instruction)
+        pos_tags = pos_tag(tokens)
+        named_entities = ne_chunk(pos_tags)
+
+        # Extract relevant information based on the intent
         if intent == 'control_flow':
-            return self._process_control_flow(instruction)
+            return self._process_control_flow(instruction, named_entities)
         elif intent == 'function_operation':
-            return self._process_function_operation(instruction)
+            return self._process_function_operation(instruction, named_entities)
         elif intent == 'io_operation':
-            return self._process_io_operation(instruction)
+            return self._process_io_operation(instruction, named_entities)
         elif intent == 'data_structure_operation':
-            return self._process_data_structure_operation(instruction)
+            return self._process_data_structure_operation(instruction, named_entities)
         elif intent == 'algorithm_execution':
-            return self._process_algorithm_execution(instruction)
+            return self._process_algorithm_execution(instruction, named_entities)
         else:
             return f"I'm sorry, I don't know how to process this type of instruction: {intent}"
 
     def _process_control_flow(self, instruction):
-        # Implement control flow logic (if, else, loops, etc.)
-        return f"Processing control flow: {instruction}"
+        # Parse the instruction to identify control flow elements
+        if "if" in instruction.lower():
+            condition, action = self._parse_if_statement(instruction)
+            if self._evaluate_condition(condition):
+                return self._execute_action(action)
+        elif "while" in instruction.lower():
+            condition, action = self._parse_while_loop(instruction)
+            result = []
+            while self._evaluate_condition(condition):
+                result.append(self._execute_action(action))
+            return "\n".join(result)
+        elif "for" in instruction.lower():
+            iterable, action = self._parse_for_loop(instruction)
+            result = []
+            for item in iterable:
+                result.append(self._execute_action(action, item))
+            return "\n".join(result)
+        else:
+            return f"Unable to process control flow instruction: {instruction}"
+
+    def _parse_if_statement(self, instruction):
+        # Simple parsing, can be improved with NLP
+        parts = instruction.split("then")
+        condition = parts[0].replace("if", "").strip()
+        action = parts[1].strip()
+        return condition, action
+
+    def _parse_while_loop(self, instruction):
+        # Simple parsing, can be improved with NLP
+        parts = instruction.split("do")
+        condition = parts[0].replace("while", "").strip()
+        action = parts[1].strip()
+        return condition, action
+
+    def _parse_for_loop(self, instruction):
+        # Simple parsing, can be improved with NLP
+        parts = instruction.split("do")
+        iterable = parts[0].split("in")[1].strip()
+        action = parts[1].strip()
+        return eval(iterable), action
+
+    def _evaluate_condition(self, condition):
+        # This is a simplified evaluation. In a real system, you'd need more robust parsing and safe evaluation
+        try:
+            return eval(condition)
+        except:
+            return False
+
+    def _execute_action(self, action, item=None):
+        # This is a simplified execution. In a real system, you'd need more robust parsing and safe execution
+        if item:
+            action = action.replace("item", str(item))
+        try:
+            return str(eval(action))
+        except:
+            return f"Unable to execute action: {action}"
 
     def _process_function_operation(self, instruction):
-        # Implement function-related operations
-        return f"Processing function operation: {instruction}"
+        # Parse the instruction to identify function-related operations
+        if "define" in instruction.lower():
+            # Handle function definition
+            function_name = self._extract_function_name(instruction)
+            parameters = self._extract_parameters(instruction)
+            body = self._extract_function_body(instruction)
+
+            # Create and store the function
+            exec(f"def {function_name}({', '.join(parameters)}):\n{body}")
+            setattr(self, function_name, locals()[function_name])
+
+            return f"Function '{function_name}' has been defined."
+
+        elif "call" in instruction.lower():
+            # Handle function call
+            function_name = self._extract_function_name(instruction)
+            arguments = self._extract_arguments(instruction)
+
+            if hasattr(self, function_name):
+                func = getattr(self, function_name)
+                result = func(*arguments)
+                return f"Function '{function_name}' called. Result: {result}"
+            else:
+                return f"Function '{function_name}' is not defined."
+
+        else:
+            return f"Unable to process function operation: {instruction}"
+
+    def _extract_function_name(self, instruction):
+        # Extract function name from instruction (implement NLP logic here)
+        # For simplicity, let's assume the function name is the first word after "define" or "call"
+        words = instruction.split()
+        idx = words.index("define") if "define" in words else words.index("call")
+        return words[idx + 1]
+
+    def _extract_parameters(self, instruction):
+        # Extract parameters from instruction (implement NLP logic here)
+        # For simplicity, let's assume parameters are comma-separated words in parentheses
+        start = instruction.find("(") + 1
+        end = instruction.find(")")
+        return [param.strip() for param in instruction[start:end].split(",") if param.strip()]
+
+    def _extract_function_body(self, instruction):
+        # Extract function body from instruction (implement NLP logic here)
+        # For simplicity, let's assume the body is everything after ":" or "do"
+        body_start = instruction.find(":") + 1 if ":" in instruction else instruction.find("do") + 2
+        return instruction[body_start:].strip()
+
+    def _extract_arguments(self, instruction):
+        # Extract arguments for function call (implement NLP logic here)
+        # For simplicity, let's assume arguments are comma-separated words in parentheses
+        start = instruction.find("(") + 1
+        end = instruction.find(")")
+        return [arg.strip() for arg in instruction[start:end].split(",") if arg.strip()]
 
     def _process_io_operation(self, instruction):
         # Implement input/output operations
-        return f"Processing I/O operation: {instruction}"
+        if "read" in instruction.lower():
+            filename = re.search(r'read\s+(?:from\s+)?(\w+\.?\w*)', instruction, re.IGNORECASE)
+            if filename:
+                try:
+                    with open(filename.group(1), 'r') as file:
+                        content = file.read()
+                    return f"Content of {filename.group(1)}:\n{content}"
+                except FileNotFoundError:
+                    return f"File {filename.group(1)} not found."
+                except Exception as e:
+                    return f"Error reading file: {str(e)}"
+            else:
+                return "Please specify a file to read from."
+        elif "write" in instruction.lower():
+            match = re.search(r'write\s+"(.+)"\s+to\s+(\w+\.?\w*)', instruction, re.IGNORECASE)
+            if match:
+                content, filename = match.groups()
+                try:
+                    with open(filename, 'w') as file:
+                        file.write(content)
+                    return f"Successfully wrote to {filename}."
+                except Exception as e:
+                    return f"Error writing to file: {str(e)}"
+            else:
+                return "Please specify content and a file to write to."
+        else:
+            return f"Unsupported I/O operation in instruction: {instruction}"
 
     def _process_data_structure_operation(self, instruction):
-        # Implement data structure operations (lists, dicts, etc.)
-        return f"Processing data structure operation: {instruction}"
+        # Parse the instruction to identify the data structure and operation
+        words = instruction.lower().split()
+        data_structure = None
+        operation = None
+
+        # Identify data structure
+        if 'list' in words:
+            data_structure = 'list'
+        elif 'dictionary' in words or 'dict' in words:
+            data_structure = 'dict'
+        elif 'set' in words:
+            data_structure = 'set'
+        elif 'tuple' in words:
+            data_structure = 'tuple'
+
+        # Identify operation
+        if 'create' in words or 'make' in words:
+            operation = 'create'
+        elif 'add' in words or 'insert' in words:
+            operation = 'add'
+        elif 'remove' in words or 'delete' in words:
+            operation = 'remove'
+        elif 'update' in words or 'change' in words:
+            operation = 'update'
+        elif 'get' in words or 'retrieve' in words:
+            operation = 'get'
+
+        if not data_structure or not operation:
+            return f"I'm sorry, I couldn't understand the data structure or operation in: {instruction}"
+
+        # Perform the operation (simplified example)
+        if data_structure == 'list':
+            if operation == 'create':
+                self.current_list = []
+                return "Created a new empty list."
+            elif operation == 'add':
+                item = next((word for word in words if word.isalnum() and word not in ['add', 'to', 'list']), None)
+                if item:
+                    self.current_list.append(item)
+                    return f"Added '{item}' to the list."
+                else:
+                    return "I'm sorry, I couldn't identify what to add to the list."
+            # Implement other operations for list
+
+        # Implement operations for other data structures
+
+        return f"Performed {operation} operation on {data_structure}."
 
     def _process_algorithm_execution(self, instruction):
-        # Implement algorithm execution logic
-        return f"Processing algorithm execution: {instruction}"
+        # Parse the instruction to identify the algorithm and its parameters
+        algorithm, params = self._parse_algorithm_instruction(instruction)
+
+        # Execute the identified algorithm
+        if algorithm == "sort":
+            return self._execute_sort_algorithm(params)
+        elif algorithm == "search":
+            return self._execute_search_algorithm(params)
+        elif algorithm == "graph":
+            return self._execute_graph_algorithm(params)
+        else:
+            return f"I'm sorry, I don't know how to execute the algorithm: {algorithm}"
+
+    def _parse_algorithm_instruction(self, instruction):
+        # Use NLP techniques to parse the instruction and extract algorithm and parameters
+        # This is a simplified example; in practice, use more sophisticated NLP tools
+        words = instruction.lower().split()
+        algorithm = next((word for word in words if word in ["sort", "search", "graph"]), None)
+        params = [word for word in words if word not in ["execute", "run", "perform", algorithm]]
+        return algorithm, params
+
+    def _execute_sort_algorithm(self, params):
+        # Implement sorting logic based on params
+        return f"Executed sorting algorithm with parameters: {params}"
+
+    def _execute_search_algorithm(self, params):
+        # Implement search logic based on params
+        return f"Executed search algorithm with parameters: {params}"
+
+    def _execute_graph_algorithm(self, params):
+        # Implement graph algorithm logic based on params
+        return f"Executed graph algorithm with parameters: {params}"
