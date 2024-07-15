@@ -98,53 +98,51 @@ class IntentRecognizer:
                 'move': ['move', 'transfer', 'relocate'],
                 'copy': ['copy', 'duplicate', 'replicate'],
                 'process': ['start', 'stop', 'restart', 'kill'],
-                'network': ['get', 'post', 'request', 'fetch'],
-                'variable': ['set', 'get', 'delete', 'assign'],
-                'control_flow': ['if', 'while', 'repeat', 'try', 'for', 'switch'],
-                'function': ['define', 'call', 'return', 'invoke'],
-                'input_output': ['ask', 'display', 'write', 'read', 'print', 'input'],
-                'data_structure': ['create', 'add', 'remove', 'sort', 'search', 'access'],
-                'algorithm': ['find', 'calculate', 'check', 'solve', 'optimize']
+                'network': ['get', 'post', 'request', 'fetch', 'download', 'upload'],
+                'variable': ['set', 'get', 'delete', 'assign', 'declare', 'initialize'],
+                'control_flow': ['if', 'else', 'while', 'for', 'switch', 'break', 'continue'],
+                'function': ['define', 'call', 'return', 'invoke', 'create'],
+                'input_output': ['ask', 'display', 'write', 'read', 'print', 'input', 'output'],
+                'data_structure': ['create', 'add', 'remove', 'sort', 'search', 'access', 'append', 'insert'],
+                'algorithm': ['find', 'calculate', 'check', 'solve', 'optimize', 'analyze'],
+                'file': ['open', 'close', 'read', 'write', 'append', 'delete', 'rename'],
+                'system': ['execute', 'run', 'start', 'stop', 'restart', 'configure']
             }
 
             for category, keywords in action_categories.items():
                 if verb_lemma in keywords:
-                    if category == 'create' and object_lemma == 'file':
-                        return 'create_file'
-                    elif category == 'delete' and object_lemma == 'file':
-                        return 'delete_file'
-                    elif category == 'update' and object_lemma == 'file':
-                        return 'update_file'
-                    elif category == 'list' and object_lemma == 'file':
-                        return 'list_files'
-                    elif category == 'execute' and object_lemma == 'code':
-                        return 'execute_code'
-                    elif category == 'execute' and object_lemma == 'command':
-                        return 'execute_system_command'
-                    elif category == 'search' and object_lemma == 'file':
-                        return 'search_file'
-                    elif category == 'move' and object_lemma == 'file':
-                        return 'move_file'
-                    elif category == 'copy' and object_lemma == 'file':
-                        return 'copy_file'
-                    elif category == 'process' and object_lemma == 'process':
-                        return 'manage_process'
-                    elif category == 'network' and object_lemma == 'request':
-                        return 'network_operation'
-                    elif category == 'variable' and object_lemma == 'variable':
-                        return 'manage_variable'
-                    elif category == 'control_flow':
-                        return 'control_flow'
+                    if category == 'file':
+                        return f'{verb_lemma}_file'
+                    elif category == 'variable':
+                        return f'{verb_lemma}_variable'
                     elif category == 'function':
-                        return 'function_operation'
-                    elif category == 'input_output':
-                        return 'io_operation'
+                        return f'{verb_lemma}_function'
                     elif category == 'data_structure':
-                        return 'data_structure_operation'
+                        if object_lemma in ['list', 'array']:
+                            return f'{verb_lemma}_list'
+                        elif object_lemma in ['dictionary', 'dict', 'map']:
+                            return f'{verb_lemma}_dictionary'
+                        else:
+                            return f'{verb_lemma}_data_structure'
+                    elif category == 'control_flow':
+                        return f'{verb_lemma}_control_flow'
+                    elif category == 'network':
+                        return f'{verb_lemma}_network'
+                    elif category == 'system':
+                        return f'{verb_lemma}_system'
+                    elif category == 'input_output':
+                        return f'{verb_lemma}_io'
                     elif category == 'algorithm':
-                        return 'algorithm_execution'
+                        return f'{verb_lemma}_algorithm'
                     else:
-                        return category
+                        return f'{category}_{verb_lemma}'
+
+        # Check for specific patterns in the dependencies
+        for dep in dependencies:
+            if dep['dep'] == 'compound' and dep['governorGloss'] == 'loop':
+                return 'create_loop'
+            elif dep['dep'] == 'nsubj' and dep['dependentGloss'] == 'if':
+                return 'create_conditional'
 
         return 'unknown'
 
