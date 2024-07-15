@@ -577,11 +577,11 @@ class EnglishExecutionEngine:
         """Define functions based on English instructions."""
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
-            def function(**kwargs):
-                print(f"DEBUG: Executing function '{name}' with arguments: {kwargs}")
-                if set(kwargs.keys()) != set(parameters):
-                    raise ValueError(f"Expected parameters {parameters}, got {kwargs.keys()}")
-                for param, arg in kwargs.items():
+            def function(*args):
+                print(f"DEBUG: Executing function '{name}' with arguments: {args}")
+                if len(args) != len(parameters):
+                    raise ValueError(f"Expected {len(parameters)} parameters, got {len(args)}")
+                for param, arg in zip(parameters, args):
                     self.variables[param] = arg
                 result = eval(return_expression, {}, self.variables)
                 print(f"DEBUG: Function '{name}' returned: {result}")
@@ -617,10 +617,13 @@ class EnglishExecutionEngine:
             return result
         except ValueError as ve:
             print(f"DEBUG: ValueError in function call: {str(ve)}")
+            raise
         except TypeError as te:
             print(f"DEBUG: TypeError in function call: {str(te)}. Check if the correct number of arguments were provided.")
+            raise
         except Exception as e:
             print(f"DEBUG: Unexpected error in function call: {str(e)}")
+            raise
         finally:
             print(f"DEBUG: Exiting handle_function_call")
 
