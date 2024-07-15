@@ -57,6 +57,18 @@ class EnglishExecutionEngine:
 
     def parse_instruction(self, instruction: str) -> Dict[str, Any]:
         """Parse English instructions into executable operations."""
+        print(f"Parsing instruction: {instruction}")  # Add this line for debugging
+
+        # Function call with assignment
+        if match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (.*)", instruction):
+            args = [arg.strip() for arg in match.group(3).split('and')]
+            return {
+                'operation': 'function_call_with_assignment',
+                'result_var': match.group(1),
+                'function_name': match.group(2),
+                'arguments': [self._parse_value(arg) for arg in args]
+            }
+
         # Variable management
         if match := re.match(r"(Create|Set|Get|Delete) (?:a )?variable (?:named )?'(\w+)'(?: (?:with|to) value (.+))?", instruction):
             return {
@@ -361,15 +373,23 @@ class EnglishExecutionEngine:
         elif operation == 'function_call':
             print(f"Executing function call: {parsed_instruction}")
             result = self.handle_function_call(
-                parsed_instruction['function_name'],
-                parsed_instruction['arg1'],
-                parsed_instruction['arg2']
+                parsed_instruction['name'],
+                *parsed_instruction['arguments']
             )
             if 'result_var' in parsed_instruction:
                 self.variables[parsed_instruction['result_var']] = result
                 print(f"Function call result stored in variable '{parsed_instruction['result_var']}': {result}")
             else:
                 print(f"Function call result: {result}")
+            return result
+        elif operation == 'function_call_with_assignment':
+            print(f"Executing function call with assignment: {parsed_instruction}")
+            result = self.handle_function_call(
+                parsed_instruction['function_name'],
+                *parsed_instruction['arguments']
+            )
+            self.variables[parsed_instruction['result_var']] = result
+            print(f"Function call result stored in variable '{parsed_instruction['result_var']}': {result}")
             return result
         elif operation == 'list_operation':
             return self.handle_list_operation(
