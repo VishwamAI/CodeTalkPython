@@ -925,3 +925,35 @@ def handle_file_management(self, operation: str, path: str, new_path: str = None
     except Exception as e:
         print(f"Error in file management operation: {str(e)}")
         return str(e)
+
+def handle_process_management(self, operation: str, process_name: str = None, command: str = None):
+    """Handle process management operations (start, stop, list)."""
+    import psutil
+    import subprocess
+
+    try:
+        if operation == "start":
+            if not command:
+                raise ValueError("Command is required to start a process")
+            process = subprocess.Popen(command.split())
+            print(f"Started process: {process.pid}")
+            return process.pid
+        elif operation == "stop":
+            if not process_name:
+                raise ValueError("Process name is required to stop a process")
+            for proc in psutil.process_iter(['name']):
+                if proc.info['name'] == process_name:
+                    proc.terminate()
+                    print(f"Stopped process: {process_name}")
+                    return
+            print(f"Process not found: {process_name}")
+        elif operation == "list":
+            processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'status']):
+                processes.append(f"PID: {proc.info['pid']}, Name: {proc.info['name']}, Status: {proc.info['status']}")
+            return "\n".join(processes)
+        else:
+            raise ValueError(f"Unknown process management operation: {operation}")
+    except Exception as e:
+        print(f"Error in process management operation: {str(e)}")
+        return str(e)
