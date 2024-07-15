@@ -577,11 +577,11 @@ class EnglishExecutionEngine:
         """Define functions based on English instructions."""
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
-            def function(*args):
-                print(f"DEBUG: Executing function '{name}' with arguments: {args}")
-                if len(args) != len(parameters):
-                    raise ValueError(f"Expected {len(parameters)} parameters, got {len(args)}")
-                for param, arg in zip(parameters, args):
+            def function(**kwargs):
+                print(f"DEBUG: Executing function '{name}' with arguments: {kwargs}")
+                if set(kwargs.keys()) != set(parameters):
+                    raise ValueError(f"Expected parameters {parameters}, got {list(kwargs.keys())}")
+                for param, arg in kwargs.items():
                     self.variables[param] = arg
                 result = eval(return_expression, {}, self.variables)
                 print(f"DEBUG: Function '{name}' returned: {result}")
@@ -606,11 +606,15 @@ class EnglishExecutionEngine:
             func = self.functions[name]
             expected_params = self.function_parameters[name]
             print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
+
             if len(expected_params) != len(args):
                 raise ValueError(f"Expected {len(expected_params)} arguments, got {len(args)}")
 
+            # Create a dictionary of parameter names and their corresponding argument values
             kwargs = dict(zip(expected_params, args))
             print(f"DEBUG: Calling function '{name}' with keyword arguments: {kwargs}")
+
+            # Call the function with keyword arguments
             result = func(**kwargs)
             print(f"DEBUG: Function '{name}' called successfully")
             print(f"DEBUG: Result: {result}")
@@ -1460,13 +1464,13 @@ def parse_instruction(self, instruction: str) -> Dict[str, Any]:
         }
 
     # Function call with assignment
-    elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (\d+) and (\d+)", instruction):
+    elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (.+)", instruction):
+        args = [arg.strip() for arg in match.group(3).split('and')]
         parsed = {
             'operation': 'function_call_with_assignment',
             'result_var': match.group(1),
             'function_name': match.group(2),
-            'arg1': int(match.group(3)),
-            'arg2': int(match.group(4))
+            'arguments': [self._parse_value(arg) for arg in args]
         }
         print(f"Parsed function call with assignment instruction: {parsed}")
         return parsed
