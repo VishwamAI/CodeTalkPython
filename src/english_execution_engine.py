@@ -578,7 +578,10 @@ class EnglishExecutionEngine:
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
             # Ensure parameters is a list of individual parameter names
-            param_list = [param.strip() for param in ' '.join(parameters).split(',') if param.strip()]
+            param_list = []
+            for param in parameters:
+                param_parts = param.split('and')
+                param_list.extend([p.strip().strip("'") for p in param_parts if p.strip()])
 
             # Store the English description of the function's behavior
             self.functions[name] = {
@@ -608,11 +611,8 @@ class EnglishExecutionEngine:
 
             # Create a local scope for the function parameters
             local_scope = {}
-            for i, param in enumerate(expected_params):
-                if i < len(args):
-                    local_scope[param] = args[i]
-                else:
-                    local_scope[param] = None  # or some default value
+            for param, arg in zip(expected_params, args):
+                local_scope[param] = arg
 
             print(f"DEBUG: Local scope: {local_scope}")
             print(f"DEBUG: Executing function '{name}' with return expression: {return_expression}")
