@@ -610,11 +610,13 @@ class EnglishExecutionEngine:
             expected_params = self.function_parameters[name]
             print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
 
-            if len(expected_params) != len(args):
-                raise ValueError(f"Expected {len(expected_params)} arguments, got {len(args)}")
-
             # Create a dictionary of parameter names and their corresponding argument values
-            kwargs = dict(zip(expected_params, args))
+            kwargs = {}
+            for i, param in enumerate(expected_params):
+                if i < len(args):
+                    kwargs[param] = args[i]
+                else:
+                    kwargs[param] = None  # or some default value
             print(f"DEBUG: Calling function '{name}' with keyword arguments: {kwargs}")
 
             # Call the function with keyword arguments
