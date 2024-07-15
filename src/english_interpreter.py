@@ -4,9 +4,10 @@ from output_generator import OutputGenerator
 from intent_recognizer import IntentRecognizer
 from input_processor import InputProcessor
 from langchain_community.embeddings import OllamaEmbeddings
+from language_templates import LanguageTemplates
 
 class EnglishInterpreter:
-    def __init__(self):
+    def __init__(self, default_language='python'):
         self.execution_engine = ExecutionEngine()
         self.output_generator = OutputGenerator()
         self.intent_recognizer = IntentRecognizer()
@@ -17,6 +18,8 @@ class EnglishInterpreter:
         self.algorithms = {}  # Dictionary to store implemented algorithms
         self.current_scope = {}  # Initialize current_scope
         self.embeddings = OllamaEmbeddings()  # Instantiate OllamaEmbeddings
+        self.language = default_language
+        self.templates = LanguageTemplates()
 
     def main_driver(self, english_instruction=None, test_file=None):
         if test_file:
@@ -30,14 +33,32 @@ class EnglishInterpreter:
         intent_data = self.input_processor.process_input(english_instruction)
         context = self._get_current_context()
         recognized_intent = self.intent_recognizer.recognize_intent(intent_data, context)
-        result = self._execute_instruction(recognized_intent, context)
+        translated_code = self.translate_to_code(recognized_intent)
+        result = self._execute_instruction(translated_code, context)
         self._update_context(result, context)
         output = self.output_generator.generate_output(result, context)
         return {
             'output': output,
             'context': context,
-            'intent': recognized_intent
+            'intent': recognized_intent,
+            'translated_code': translated_code
         }
+
+    def translate_to_code(self, recognized_intent):
+        template_name = self._get_template_name(recognized_intent)
+        template_args = self._extract_template_args(recognized_intent)
+        return self._fill_template(template_name, **template_args)
+
+    def _get_template_name(self, recognized_intent):
+        intent_type = recognized_intent.get('type')
+        return f"{intent_type}_template"
+
+    def _extract_template_args(self, recognized_intent):
+        return {k: v for k, v in recognized_intent.items() if k != 'type'}
+
+    def _fill_template(self, template_name, **kwargs):
+        template = self.templates.get_template(self.language, template_name)
+        return self.templates.fill_template(template, **kwargs)
 
     def _get_current_context(self):
         return {
@@ -517,19 +538,22 @@ class EnglishInterpreter:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="English Interpreter")
     parser.add_argument("--test", help="Path to test instructions file")
+    parser.add_argument("--language", default="python", help="Target programming language")
     args = parser.parse_args()
 
-    interpreter = EnglishInterpreter()
+    interpreter = EnglishInterpreter(default_language=args.language)
     if args.test:
         results = interpreter.main_driver(test_file=args.test)
         for instruction, result in results:
             print(f"Instruction: {instruction}")
-            print(f"Result: {result}")
+            print(f"Translated Code: {result['translated_code']}")
+            print(f"Output: {result['output']}")
             print("---")
     else:
         while True:
-            user_input = input("Enter an instruction (or 'exit' to quit): ")
+            user_input = input(f"Enter an instruction in English for {args.language} (or 'exit' to quit): ")
             if user_input.lower() == 'exit':
                 break
             result = interpreter.main_driver(english_instruction=user_input)
-            print(f"Result: {result}")
+            print(f"Translated Code: {result['translated_code']}")
+            print(f"Output: {result['output']}")
