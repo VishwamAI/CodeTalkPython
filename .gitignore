@@ -9,3 +9,7 @@ transformers/
 
 # Ignore backup files
 src/intent_recognizer_backup.py
+
+# Ignore Python compiled files
+__pycache__/
+*.pyc
