@@ -577,10 +577,13 @@ class EnglishExecutionEngine:
         """Define functions based on English instructions."""
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
+            # Ensure parameters is a list of individual parameter names
+            param_list = [param.strip() for param in ' '.join(parameters).split(',')]
+
             def function(**kwargs):
                 print(f"DEBUG: Executing function '{name}' with arguments: {kwargs}")
-                if set(kwargs.keys()) != set(parameters):
-                    raise ValueError(f"Expected parameters {parameters}, got {list(kwargs.keys())}")
+                if set(kwargs.keys()) != set(param_list):
+                    raise ValueError(f"Expected parameters {param_list}, got {list(kwargs.keys())}")
                 for param, arg in kwargs.items():
                     self.variables[param] = arg
                 result = eval(return_expression, {}, self.variables)
@@ -588,9 +591,9 @@ class EnglishExecutionEngine:
                 return result
 
             self.functions[name] = function
-            self.function_parameters[name] = parameters  # Store parameter names
-            print(f"DEBUG: Function '{name}' has been defined and stored with parameters: {parameters}")
-            print(f"Function '{name}' has been defined with parameters: {', '.join(parameters)}")
+            self.function_parameters[name] = param_list  # Store parameter names as a list
+            print(f"DEBUG: Function '{name}' has been defined and stored with parameters: {param_list}")
+            print(f"Function '{name}' has been defined with parameters: {', '.join(param_list)}")
         except Exception as e:
             print(f"DEBUG: Error in function definition for '{name}': {str(e)}")
             print(f"Error in function definition: {str(e)}")
