@@ -8,12 +8,12 @@ class EnglishExecutionEngine:
     def __init__(self):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, callable] = {}
+        self.function_parameters: Dict[str, List[str]] = {}  # New attribute to store function parameters
         self.language_templates = LanguageTemplates()
         self.current_language = 'python'  # Default language
         self.simulated_database = {}
         self.simulated_apps = {}  # Dictionary to store simulated apps
         self.defined_functions = {}  # Dictionary to store user-defined functions
-
     def process_database_instruction(self, instruction: str) -> str:
         """Process natural language database instructions."""
         words = instruction.lower().split()
@@ -57,6 +57,18 @@ class EnglishExecutionEngine:
 
     def parse_instruction(self, instruction: str) -> Dict[str, Any]:
         """Parse English instructions into executable operations."""
+        print(f"Parsing instruction: {instruction}")  # Add this line for debugging
+
+        # Function call with assignment
+        if match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (.*)", instruction):
+            args = [arg.strip() for arg in match.group(3).split('and')]
+            return {
+                'operation': 'function_call_with_assignment',
+                'result_var': match.group(1),
+                'function_name': match.group(2),
+                'arguments': [self._parse_value(arg) for arg in args]
+            }
+
         # Variable management
         if match := re.match(r"(Create|Set|Get|Delete) (?:a )?variable (?:named )?'(\w+)'(?: (?:with|to) value (.+))?", instruction):
             return {
@@ -74,6 +86,25 @@ class EnglishExecutionEngine:
                 'operand1': match.group(2),
                 'operation_type': match.group(3),
                 'operand2': match.group(4)
+            }
+
+        # Simple variable assignment
+        elif match := re.match(r"set '(\w+)' to (\d+)", instruction):
+            return {
+                'operation': 'variable_management',
+                'action': 'set',
+                'name': match.group(1),
+                'value': int(match.group(2))
+            }
+
+        # Simple arithmetic operation
+        elif match := re.match(r"add '(\w+)' to '(\w+)'", instruction):
+            return {
+                'operation': 'arithmetic',
+                'result_var': match.group(2),
+                'operand1': match.group(2),
+                'operation_type': 'plus',
+                'operand2': match.group(1)
             }
 
         # Control structures
@@ -299,10 +330,11 @@ class EnglishExecutionEngine:
 
         # Fill the template with the parsed instruction data
         if template:
+            parsed_instruction['params'] = parsed_instruction.get('params', [])
+            parsed_instruction['body'] = parsed_instruction.get('body', '')  # Add default empty string for 'body'
             code_snippet = self.language_templates.fill_template(template, **parsed_instruction)
             print(f"Generated code snippet: {code_snippet}")
             # TODO: Execute or return the code snippet as needed
-
         if operation == 'variable_management':
             return self.handle_variable_management(
                 parsed_instruction['action'],
@@ -339,10 +371,26 @@ class EnglishExecutionEngine:
                 parsed_instruction['return_expression']
             )
         elif operation == 'function_call':
-            return self.handle_function_call(
+            print(f"Executing function call: {parsed_instruction}")
+            result = self.handle_function_call(
                 parsed_instruction['name'],
-                parsed_instruction['arguments']
+                *parsed_instruction['arguments']
             )
+            if 'result_var' in parsed_instruction:
+                self.variables[parsed_instruction['result_var']] = result
+                print(f"Function call result stored in variable '{parsed_instruction['result_var']}': {result}")
+            else:
+                print(f"Function call result: {result}")
+            return result
+        elif operation == 'function_call_with_assignment':
+            print(f"Executing function call with assignment: {parsed_instruction}")
+            result = self.handle_function_call(
+                parsed_instruction['function_name'],
+                *parsed_instruction['arguments']
+            )
+            self.variables[parsed_instruction['result_var']] = result
+            print(f"Function call result stored in variable '{parsed_instruction['result_var']}': {result}")
+            return result
         elif operation == 'list_operation':
             return self.handle_list_operation(
                 parsed_instruction['list_operation'],
@@ -527,32 +575,72 @@ class EnglishExecutionEngine:
 
     def handle_function_definition(self, name: str, parameters: List[str], return_expression: str) -> None:
         """Define functions based on English instructions."""
+        print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
-            def function(*args):
-                if len(args) != len(parameters):
-                    raise ValueError(f"Expected {len(parameters)} arguments, got {len(args)}")
-                for param, arg in zip(parameters, args):
-                    self.variables[param] = arg
-                return eval(return_expression, {}, self.variables)
+            # Ensure parameters is a list of individual parameter names
+            param_list = []
+            for param in parameters:
+                param_parts = param.split('and')
+                param_list.extend([p.strip().strip("'") for p in param_parts if p.strip()])
 
-            self.functions[name] = function
-            print(f"Function '{name}' has been defined with parameters: {', '.join(parameters)}")
+            # Store the English description of the function's behavior
+            self.functions[name] = {
+                'parameters': param_list,
+                'return_expression': return_expression
+            }
+
+            self.function_parameters[name] = param_list  # Store parameter names as a list
+            print(f"DEBUG: Function '{name}' has been defined and stored with parameters: {param_list}")
+            print(f"Function '{name}' has been defined with parameters: {', '.join(param_list)}")
         except Exception as e:
+            print(f"DEBUG: Error in function definition for '{name}': {str(e)}")
             print(f"Error in function definition: {str(e)}")
 
-    def handle_function_call(self, name: str, arguments: List[Any]) -> Any:
-        """Execute function calls."""
+    def handle_function_call(self, name: str, *args) -> Any:
+        """Execute function calls with variable arguments."""
+        print(f"DEBUG: Entering handle_function_call with name: {name}, args: {args}")
         try:
             if name not in self.functions:
+                print(f"DEBUG: Function '{name}' is not defined.")
                 raise ValueError(f"Function '{name}' is not defined.")
 
-            result = self.functions[name](*arguments)
-            print(f"Function '{name}' called with arguments: {', '.join(map(str, arguments))}")
-            print(f"Result: {result}")
+            func_info = self.functions[name]
+            expected_params = func_info['parameters']
+            return_expression = func_info['return_expression']
+            print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
+
+            # Create a local scope for the function parameters
+            local_scope = {}
+            for param, arg in zip(expected_params, args):
+                local_scope[param] = arg
+
+            print(f"DEBUG: Local scope: {local_scope}")
+            print(f"DEBUG: Executing function '{name}' with return expression: {return_expression}")
+
+            # Interpret and execute the return expression using the local scope
+            if 'plus' in return_expression:
+                operands = return_expression.split('plus')
+                left = local_scope[operands[0].strip().strip("'")]
+                right = local_scope[operands[1].strip().strip("'")]
+                result = left + right
+            else:
+                # Use eval with the local_scope to support more operations
+                result = eval(return_expression, {}, local_scope)
+
+            print(f"DEBUG: Function '{name}' executed successfully")
+            print(f"DEBUG: Result: {result}")
             return result
+        except ValueError as ve:
+            print(f"DEBUG: ValueError in function call: {str(ve)}")
+            raise
+        except TypeError as te:
+            print(f"DEBUG: TypeError in function call: {str(te)}. Check if the correct number of arguments were provided.")
+            raise
         except Exception as e:
-            print(f"Error in function call: {str(e)}")
-            return None
+            print(f"DEBUG: Unexpected error in function call: {str(e)}")
+            raise
+        finally:
+            print(f"DEBUG: Exiting handle_function_call")
 
     def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
         """Handle list operations (create, append, remove, get)."""
@@ -1344,6 +1432,246 @@ def parse_app_type(self, instruction: str) -> str:
         return 'desktop'
     else:
         return 'unknown'
+
+def parse_instruction(self, instruction: str) -> Dict[str, Any]:
+    """Parse English instructions into executable operations."""
+    print(f"Parsing instruction: {instruction}")  # Add this line
+    # Variable management
+    if match := re.match(r"(Create|Set|Get|Delete) (?:a )?variable (?:named )?'(\w+)'(?: (?:with|to) value (.+))?", instruction):
+        return {
+            'operation': 'variable_management',
+            'action': match.group(1).lower(),
+            'name': match.group(2),
+            'value': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Arithmetic operation
+    elif match := re.match(r"Set '(\w+)' to '(\w+)' (plus|minus|times|divided by) '(\w+)'", instruction):
+        return {
+            'operation': 'arithmetic',
+            'result_var': match.group(1),
+            'operand1': match.group(2),
+            'operation_type': match.group(3),
+            'operand2': match.group(4)
+        }
+
+    # Simple variable assignment
+    elif match := re.match(r"set '(\w+)' to (\d+)", instruction):
+        return {
+            'operation': 'variable_management',
+            'action': 'set',
+            'name': match.group(1),
+            'value': int(match.group(2))
+        }
+
+    # Simple arithmetic operation
+    elif match := re.match(r"add '(\w+)' to '(\w+)'", instruction):
+        return {
+            'operation': 'arithmetic',
+            'result_var': match.group(2),
+            'operand1': match.group(2),
+            'operation_type': 'plus',
+            'operand2': match.group(1)
+        }
+
+    # Function call with assignment
+    elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (.+)", instruction):
+        args = [arg.strip() for arg in match.group(3).split('and')]
+        parsed = {
+            'operation': 'function_call_with_assignment',
+            'result_var': match.group(1),
+            'function_name': match.group(2),
+            'arguments': [self._parse_value(arg) for arg in args]
+        }
+        print(f"Parsed function call with assignment instruction: {parsed}")
+        return parsed
+
+    # Control structures
+    elif match := re.match(r"(If|While) '(\w+)' is (greater than|less than|equal to) (\d+), (.*?)(?:, otherwise (.*))?$", instruction):
+        return {
+            'operation': 'control_structure',
+            'type': match.group(1).lower(),
+            'condition_var': match.group(2),
+            'comparison': match.group(3),
+            'comparison_value': int(match.group(4)),
+            'true_action': self.parse_instruction(match.group(5)),
+            'false_action': self.parse_instruction(match.group(6)) if match.group(6) else None
+        }
+
+    # Loop
+    elif match := re.match(r"For (\w+) from (\d+) to (\d+), (.*)", instruction):
+        return {
+            'operation': 'loop',
+            'loop_var': match.group(1),
+            'start': int(match.group(2)),
+            'end': int(match.group(3)),
+            'action': self.parse_instruction(match.group(4))
+        }
+
+    # Function management
+    elif match := re.match(r"(Define|Call) (?:a )?function (?:named )?'(\w+)'(?: that takes (.*?) as parameters)?(?: and returns (.*?))?$", instruction):
+        if match.group(1) == 'Define':
+            return {
+                'operation': 'function_definition',
+                'name': match.group(2),
+                'parameters': [param.strip() for param in match.group(3).split(',')] if match.group(3) else [],
+                'return_expression': match.group(4)
+            }
+        else:
+            return {
+                'operation': 'function_call',
+                'name': match.group(2),
+                'arguments': [self._parse_value(arg.strip()) for arg in match.group(3).split(',')] if match.group(3) else []
+            }
+
+    # List operations
+    elif match := re.match(r"(Create|Append to|Remove from|Get from) list '(\w+)'(?: (with|item|at index) (.+))?", instruction):
+        return {
+            'operation': 'list_operation',
+            'list_operation': match.group(1).lower(),
+            'list_name': match.group(2),
+            'item' if match.group(1).lower() in ['append', 'remove'] else 'index': self._parse_value(match.group(4)) if match.group(4) else None
+        }
+
+    # Dictionary operations
+    elif match := re.match(r"(Create|Set|Get|Remove) (?:from )?dictionary '(\w+)'(?: (?:with key|key) '(.+)'(?: (?:and|to) value '(.+)')?)?", instruction):
+        return {
+            'operation': 'dictionary_operation',
+            'dict_operation': match.group(1).lower(),
+            'dict_name': match.group(2),
+            'key': self._parse_value(match.group(3)) if match.group(3) else None,
+            'value': self._parse_value(match.group(4)) if match.group(4) else None
+        }
+
+    # File operations
+    elif match := re.match(r"(Open|Close|Read|Write|Append to) file '(.+)'(?: with (content|mode) '(.+)')?", instruction):
+        return {
+            'operation': 'file_operation',
+            'file_operation': match.group(1).lower(),
+            'filename': match.group(2),
+            'content' if match.group(3) == 'content' else 'mode': match.group(4) if match.group(4) else None
+        }
+
+    # Process management
+    elif match := re.match(r"(Start|Stop|Restart) process '(.+)'", instruction):
+        return {
+            'operation': 'process_management',
+            'action': match.group(1).lower(),
+            'process_name': match.group(2)
+        }
+
+    # Network operations
+    elif match := re.match(r"(GET|POST|PUT|DELETE) request to '(.+)'(?: with data '(.+)')?", instruction):
+        return {
+            'operation': 'network_operation',
+            'method': match.group(1),
+            'url': match.group(2),
+            'data': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # System-level operations
+    elif match := re.match(r"Execute system command '(.+)'", instruction):
+        return {
+            'operation': 'system_operation',
+            'command': match.group(1)
+        }
+
+    # Stack operations
+    elif match := re.match(r"(Create|Push|Pop|Peek) (?:a )?stack (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+        return {
+            'operation': 'stack_operation',
+            'stack_operation': match.group(1).lower(),
+            'stack_name': match.group(2),
+            'item': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Queue operations
+    elif match := re.match(r"(Create|Enqueue|Dequeue|Peek) (?:a )?queue (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+        return {
+            'operation': 'queue_operation',
+            'queue_operation': match.group(1).lower(),
+            'queue_name': match.group(2),
+            'item': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Class operations
+    elif match := re.match(r"Create a class named (\w+)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'create',
+            'class_name': match.group(1)
+        }
+    elif match := re.match(r"Add attribute (\w+) to (\w+)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'add_attribute',
+            'class_name': match.group(2),
+            'attribute_name': match.group(1)
+        }
+    elif match := re.match(r"Add method (\w+) to (\w+) that takes (.*) and does (.*)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'add_method',
+            'class_name': match.group(2),
+            'method_name': match.group(1),
+            'parameters': [param.strip() for param in match.group(3).split(',')],
+            'action': match.group(4)
+        }
+    # Object operations
+    elif match := re.match(r"Create a (\w+) object named (\w+)", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'create',
+            'class_name': match.group(1),
+            'object_name': match.group(2)
+        }
+    elif match := re.match(r"Set attribute '(\w+)' of '(\w+)' to '(.+)'", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'set_attribute',
+            'object_name': match.group(2),
+            'attribute_name': match.group(1),
+            'value': self._parse_value(match.group(3))
+        }
+    elif match := re.match(r"Get attribute '(\w+)' of '(\w+)'", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'get_attribute',
+            'object_name': match.group(2),
+            'attribute_name': match.group(1)
+        }
+    elif match := re.match(r"Call method '(\w+)' of '(\w+)' with arguments (.*)", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'call_method',
+            'object_name': match.group(2),
+            'method_name': match.group(1),
+            'arguments': [self._parse_value(arg.strip()) for arg in match.group(3).split(',')]
+        }
+    # Inheritance
+    elif match := re.match(r"Create class (\w+) inheriting from (\w+)", instruction):
+        return {
+            'operation': 'inheritance',
+            'subclass_name': match.group(1),
+            'superclass_name': match.group(2)
+        }
+    # Interface
+    elif match := re.match(r"Create interface (\w+) with methods (.*)", instruction):
+        return {
+            'operation': 'interface',
+            'interface_operation': 'create',
+            'interface_name': match.group(1),
+            'methods': [method.strip() for method in match.group(2).split(',')]
+        }
+    elif match := re.match(r"Implement interface (\w+) in class (\w+)", instruction):
+        return {
+            'operation': 'interface',
+            'interface_operation': 'implement',
+            'interface_name': match.group(1),
+            'class_name': match.group(2)
+        }
+    else:
+        raise ValueError(f"Unrecognized instruction: {instruction}")
 
 def extract_features(self, instruction: str) -> List[str]:
     # Simple feature extraction based on keywords after "with features"
