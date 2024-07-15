@@ -1365,6 +1365,243 @@ def parse_app_type(self, instruction: str) -> str:
     else:
         return 'unknown'
 
+def parse_instruction(self, instruction: str) -> Dict[str, Any]:
+    """Parse English instructions into executable operations."""
+    # Variable management
+    if match := re.match(r"(Create|Set|Get|Delete) (?:a )?variable (?:named )?'(\w+)'(?: (?:with|to) value (.+))?", instruction):
+        return {
+            'operation': 'variable_management',
+            'action': match.group(1).lower(),
+            'name': match.group(2),
+            'value': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Arithmetic operation
+    elif match := re.match(r"Set '(\w+)' to '(\w+)' (plus|minus|times|divided by) '(\w+)'", instruction):
+        return {
+            'operation': 'arithmetic',
+            'result_var': match.group(1),
+            'operand1': match.group(2),
+            'operation_type': match.group(3),
+            'operand2': match.group(4)
+        }
+
+    # Simple variable assignment
+    elif match := re.match(r"set '(\w+)' to (\d+)", instruction):
+        return {
+            'operation': 'variable_management',
+            'action': 'set',
+            'name': match.group(1),
+            'value': int(match.group(2))
+        }
+
+    # Simple arithmetic operation
+    elif match := re.match(r"add '(\w+)' to '(\w+)'", instruction):
+        return {
+            'operation': 'arithmetic',
+            'result_var': match.group(2),
+            'operand1': match.group(2),
+            'operation_type': 'plus',
+            'operand2': match.group(1)
+        }
+
+    # Function call
+    elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (\d+) and (\d+)", instruction):
+        return {
+            'operation': 'function_call',
+            'result_var': match.group(1),
+            'function_name': match.group(2),
+            'arg1': int(match.group(3)),
+            'arg2': int(match.group(4))
+        }
+
+    # Control structures
+    elif match := re.match(r"(If|While) '(\w+)' is (greater than|less than|equal to) (\d+), (.*?)(?:, otherwise (.*))?$", instruction):
+        return {
+            'operation': 'control_structure',
+            'type': match.group(1).lower(),
+            'condition_var': match.group(2),
+            'comparison': match.group(3),
+            'comparison_value': int(match.group(4)),
+            'true_action': self.parse_instruction(match.group(5)),
+            'false_action': self.parse_instruction(match.group(6)) if match.group(6) else None
+        }
+
+    # Loop
+    elif match := re.match(r"For (\w+) from (\d+) to (\d+), (.*)", instruction):
+        return {
+            'operation': 'loop',
+            'loop_var': match.group(1),
+            'start': int(match.group(2)),
+            'end': int(match.group(3)),
+            'action': self.parse_instruction(match.group(4))
+        }
+
+    # Function management
+    elif match := re.match(r"(Define|Call) (?:a )?function (?:named )?'(\w+)'(?: that takes (.*?) as parameters)?(?: and returns (.*?))?$", instruction):
+        if match.group(1) == 'Define':
+            return {
+                'operation': 'function_definition',
+                'name': match.group(2),
+                'parameters': [param.strip() for param in match.group(3).split(',')] if match.group(3) else [],
+                'return_expression': match.group(4)
+            }
+        else:
+            return {
+                'operation': 'function_call',
+                'name': match.group(2),
+                'arguments': [self._parse_value(arg.strip()) for arg in match.group(3).split(',')] if match.group(3) else []
+            }
+
+    # List operations
+    elif match := re.match(r"(Create|Append to|Remove from|Get from) list '(\w+)'(?: (with|item|at index) (.+))?", instruction):
+        return {
+            'operation': 'list_operation',
+            'list_operation': match.group(1).lower(),
+            'list_name': match.group(2),
+            'item' if match.group(1).lower() in ['append', 'remove'] else 'index': self._parse_value(match.group(4)) if match.group(4) else None
+        }
+
+    # Dictionary operations
+    elif match := re.match(r"(Create|Set|Get|Remove) (?:from )?dictionary '(\w+)'(?: (?:with key|key) '(.+)'(?: (?:and|to) value '(.+)')?)?", instruction):
+        return {
+            'operation': 'dictionary_operation',
+            'dict_operation': match.group(1).lower(),
+            'dict_name': match.group(2),
+            'key': self._parse_value(match.group(3)) if match.group(3) else None,
+            'value': self._parse_value(match.group(4)) if match.group(4) else None
+        }
+
+    # File operations
+    elif match := re.match(r"(Open|Close|Read|Write|Append to) file '(.+)'(?: with (content|mode) '(.+)')?", instruction):
+        return {
+            'operation': 'file_operation',
+            'file_operation': match.group(1).lower(),
+            'filename': match.group(2),
+            'content' if match.group(3) == 'content' else 'mode': match.group(4) if match.group(4) else None
+        }
+
+    # Process management
+    elif match := re.match(r"(Start|Stop|Restart) process '(.+)'", instruction):
+        return {
+            'operation': 'process_management',
+            'action': match.group(1).lower(),
+            'process_name': match.group(2)
+        }
+
+    # Network operations
+    elif match := re.match(r"(GET|POST|PUT|DELETE) request to '(.+)'(?: with data '(.+)')?", instruction):
+        return {
+            'operation': 'network_operation',
+            'method': match.group(1),
+            'url': match.group(2),
+            'data': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # System-level operations
+    elif match := re.match(r"Execute system command '(.+)'", instruction):
+        return {
+            'operation': 'system_operation',
+            'command': match.group(1)
+        }
+
+    # Stack operations
+    elif match := re.match(r"(Create|Push|Pop|Peek) (?:a )?stack (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+        return {
+            'operation': 'stack_operation',
+            'stack_operation': match.group(1).lower(),
+            'stack_name': match.group(2),
+            'item': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Queue operations
+    elif match := re.match(r"(Create|Enqueue|Dequeue|Peek) (?:a )?queue (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+        return {
+            'operation': 'queue_operation',
+            'queue_operation': match.group(1).lower(),
+            'queue_name': match.group(2),
+            'item': self._parse_value(match.group(3)) if match.group(3) else None
+        }
+
+    # Class operations
+    elif match := re.match(r"Create a class named (\w+)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'create',
+            'class_name': match.group(1)
+        }
+    elif match := re.match(r"Add attribute (\w+) to (\w+)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'add_attribute',
+            'class_name': match.group(2),
+            'attribute_name': match.group(1)
+        }
+    elif match := re.match(r"Add method (\w+) to (\w+) that takes (.*) and does (.*)", instruction):
+        return {
+            'operation': 'class_operation',
+            'class_operation': 'add_method',
+            'class_name': match.group(2),
+            'method_name': match.group(1),
+            'parameters': [param.strip() for param in match.group(3).split(',')],
+            'action': match.group(4)
+        }
+    # Object operations
+    elif match := re.match(r"Create a (\w+) object named (\w+)", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'create',
+            'class_name': match.group(1),
+            'object_name': match.group(2)
+        }
+    elif match := re.match(r"Set attribute '(\w+)' of '(\w+)' to '(.+)'", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'set_attribute',
+            'object_name': match.group(2),
+            'attribute_name': match.group(1),
+            'value': self._parse_value(match.group(3))
+        }
+    elif match := re.match(r"Get attribute '(\w+)' of '(\w+)'", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'get_attribute',
+            'object_name': match.group(2),
+            'attribute_name': match.group(1)
+        }
+    elif match := re.match(r"Call method '(\w+)' of '(\w+)' with arguments (.*)", instruction):
+        return {
+            'operation': 'object_operation',
+            'object_operation': 'call_method',
+            'object_name': match.group(2),
+            'method_name': match.group(1),
+            'arguments': [self._parse_value(arg.strip()) for arg in match.group(3).split(',')]
+        }
+    # Inheritance
+    elif match := re.match(r"Create class (\w+) inheriting from (\w+)", instruction):
+        return {
+            'operation': 'inheritance',
+            'subclass_name': match.group(1),
+            'superclass_name': match.group(2)
+        }
+    # Interface
+    elif match := re.match(r"Create interface (\w+) with methods (.*)", instruction):
+        return {
+            'operation': 'interface',
+            'interface_operation': 'create',
+            'interface_name': match.group(1),
+            'methods': [method.strip() for method in match.group(2).split(',')]
+        }
+    elif match := re.match(r"Implement interface (\w+) in class (\w+)", instruction):
+        return {
+            'operation': 'interface',
+            'interface_operation': 'implement',
+            'interface_name': match.group(1),
+            'class_name': match.group(2)
+        }
+    else:
+        raise ValueError(f"Unrecognized instruction: {instruction}")
+
 def extract_features(self, instruction: str) -> List[str]:
     # Simple feature extraction based on keywords after "with features"
     features_start = instruction.lower().find('with features')
