@@ -607,7 +607,6 @@ class EnglishExecutionEngine:
             print(f"Unexpected error in function call: {str(e)}")
         finally:
             print(f"Exiting handle_function_call")
-        return None
 
     def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
         """Handle list operations (create, append, remove, get)."""
