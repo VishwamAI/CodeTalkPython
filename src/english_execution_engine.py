@@ -582,9 +582,22 @@ class EnglishExecutionEngine:
 
     def handle_system_operation(self, command: str) -> str:
         """Handle system-level operations (execute system commands)."""
+        import subprocess
+        import shlex
+
+        # List of allowed commands for security
+        allowed_commands = ['ls', 'dir', 'echo', 'pwd', 'whoami', 'date', 'time', 'uptime']
+
         try:
-            import subprocess
-            result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+            # Split the command into parts
+            cmd_parts = shlex.split(command)
+
+            # Check if the base command is in the allowed list
+            if cmd_parts[0] not in allowed_commands:
+                raise ValueError(f"Command '{cmd_parts[0]}' is not allowed for security reasons.")
+
+            # Execute the command
+            result = subprocess.run(cmd_parts, check=True, capture_output=True, text=True)
             print(f"Executed system command: {command}")
             return result.stdout
         except subprocess.CalledProcessError as e:
@@ -592,6 +605,8 @@ class EnglishExecutionEngine:
             return e.output
         except Exception as e:
             print(f"Error in system operation: {str(e)}")
+            return str(e)
+
     def handle_arithmetic_operation(self, result_var: str, operand1: str, operation_type: str, operand2: str) -> None:
         """Perform basic arithmetic operations."""
         try:
