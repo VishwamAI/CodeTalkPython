@@ -21,15 +21,3 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Ignore virtual environment
-venv/
-
-# Ignore dataset directory
-dataset/
-
-# Ignore transformers directory
-transformers/
-
-# Ignore backup files
-src/intent_recognizer_backup.py
