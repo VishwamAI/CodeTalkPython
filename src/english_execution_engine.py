@@ -957,3 +957,34 @@ def handle_process_management(self, operation: str, process_name: str = None, co
     except Exception as e:
         print(f"Error in process management operation: {str(e)}")
         return str(e)
+
+def handle_system_configuration(self, operation: str, setting: str = None, value: str = None):
+    """Handle system configuration operations (get info, update settings)."""
+    import platform
+    import psutil
+    import os
+
+    try:
+        if operation == "get_info":
+            system_info = {
+                "OS": platform.system(),
+                "OS Version": platform.version(),
+                "Architecture": platform.machine(),
+                "CPU": platform.processor(),
+                "Total RAM": f"{psutil.virtual_memory().total / (1024 ** 3):.2f} GB",
+                "Available RAM": f"{psutil.virtual_memory().available / (1024 ** 3):.2f} GB",
+                "Disk Usage": f"{psutil.disk_usage('/').percent}%"
+            }
+            return "\n".join([f"{k}: {v}" for k, v in system_info.items()])
+        elif operation == "update_setting":
+            if not setting or not value:
+                raise ValueError("Both setting and value are required to update a system setting")
+            # This is a simplified example. In a real-world scenario, you'd need to implement
+            # proper system calls or use appropriate libraries to modify system settings.
+            os.environ[setting] = value
+            print(f"Updated system setting: {setting} = {value}")
+        else:
+            raise ValueError(f"Unknown system configuration operation: {operation}")
+    except Exception as e:
+        print(f"Error in system configuration operation: {str(e)}")
+        return str(e)
