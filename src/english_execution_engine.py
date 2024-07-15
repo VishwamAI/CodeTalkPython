@@ -2,11 +2,14 @@ import re
 import ast
 import types
 from typing import Any, Dict, List, Union, Optional
+from .language_templates import LanguageTemplates
 
 class EnglishExecutionEngine:
     def __init__(self):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, callable] = {}
+        self.language_templates = LanguageTemplates()
+        self.current_language = 'python'  # Default language
 
     def parse_instruction(self, instruction: str) -> Dict[str, Any]:
         """Parse English instructions into executable operations."""
@@ -226,6 +229,15 @@ class EnglishExecutionEngine:
     def execute_instruction(self, parsed_instruction: Dict[str, Any]) -> Any:
         """Execute the parsed instructions."""
         operation = parsed_instruction['operation']
+
+        # Get the appropriate template
+        template = self.language_templates.get_template(self.current_language, operation)
+
+        # Fill the template with the parsed instruction data
+        if template:
+            code_snippet = self.language_templates.fill_template(template, **parsed_instruction)
+            print(f"Generated code snippet: {code_snippet}")
+            # TODO: Execute or return the code snippet as needed
 
         if operation == 'variable_management':
             return self.handle_variable_management(
@@ -739,6 +751,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def set_language(self, language: str):
+    if language in ['python', 'c', 'java']:
+        self.current_language = language
+        print(f"Switched to {language} mode")
+    else:
+        raise ValueError(f"Unsupported language: {language}")
 
 def handle_class_operation(self, operation: str, class_name: str, **kwargs):
     if operation == "create":
