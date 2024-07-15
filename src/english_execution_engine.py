@@ -595,7 +595,12 @@ class EnglishExecutionEngine:
             if name not in self.functions:
                 raise ValueError(f"Function '{name}' is not defined.")
 
-            result = self.functions[name](*args)
+            func = self.functions[name]
+            expected_args = func.__code__.co_argcount
+            if expected_args != len(args):
+                raise ValueError(f"Expected {expected_args} arguments, got {len(args)}")
+
+            result = func(*args)
             print(f"Function '{name}' called successfully with arguments: {args}")
             print(f"Result: {result}")
             return result
