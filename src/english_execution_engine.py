@@ -319,6 +319,7 @@ class EnglishExecutionEngine:
         # Fill the template with the parsed instruction data
         if template:
             parsed_instruction['params'] = parsed_instruction.get('params', [])
+            parsed_instruction['body'] = parsed_instruction.get('body', '')  # Add default empty string for 'body'
             code_snippet = self.language_templates.fill_template(template, **parsed_instruction)
             print(f"Generated code snippet: {code_snippet}")
             # TODO: Execute or return the code snippet as needed
