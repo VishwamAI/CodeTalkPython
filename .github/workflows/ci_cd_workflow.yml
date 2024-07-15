@@ -25,7 +25,7 @@ jobs:
 
     - name: Run tests
       run: |
-        # Add commands to run tests here
-        echo "Tests run here"
+        python -m unittest discover tests
+        # Add any additional commands needed to run the English interpreter test cases
 
     # Deployment step can be added here if needed
