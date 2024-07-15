@@ -575,43 +575,52 @@ class EnglishExecutionEngine:
 
     def handle_function_definition(self, name: str, parameters: List[str], return_expression: str) -> None:
         """Define functions based on English instructions."""
+        print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
             def function(*args):
+                print(f"DEBUG: Executing function '{name}' with arguments: {args}")
                 if len(args) != len(parameters):
                     raise ValueError(f"Expected {len(parameters)} arguments, got {len(args)}")
                 for param, arg in zip(parameters, args):
                     self.variables[param] = arg
-                return eval(return_expression, {}, self.variables)
+                result = eval(return_expression, {}, self.variables)
+                print(f"DEBUG: Function '{name}' returned: {result}")
+                return result
 
             self.functions[name] = function
+            print(f"DEBUG: Function '{name}' has been defined and stored in self.functions")
             print(f"Function '{name}' has been defined with parameters: {', '.join(parameters)}")
         except Exception as e:
+            print(f"DEBUG: Error in function definition for '{name}': {str(e)}")
             print(f"Error in function definition: {str(e)}")
 
     def handle_function_call(self, name: str, *args) -> Any:
         """Execute function calls with variable arguments."""
-        print(f"Entering handle_function_call with name: {name}, args: {args}")
+        print(f"DEBUG: Entering handle_function_call with name: {name}, args: {args}")
         try:
             if name not in self.functions:
+                print(f"DEBUG: Function '{name}' is not defined.")
                 raise ValueError(f"Function '{name}' is not defined.")
 
             func = self.functions[name]
             expected_args = func.__code__.co_argcount
+            print(f"DEBUG: Expected {expected_args} arguments, got {len(args)}")
             if expected_args != len(args):
                 raise ValueError(f"Expected {expected_args} arguments, got {len(args)}")
 
+            print(f"DEBUG: Calling function '{name}' with arguments: {args}")
             result = func(*args)
-            print(f"Function '{name}' called successfully with arguments: {args}")
-            print(f"Result: {result}")
+            print(f"DEBUG: Function '{name}' called successfully")
+            print(f"DEBUG: Result: {result}")
             return result
         except ValueError as ve:
-            print(f"ValueError in function call: {str(ve)}")
+            print(f"DEBUG: ValueError in function call: {str(ve)}")
         except TypeError as te:
-            print(f"TypeError in function call: {str(te)}. Check if the correct number of arguments were provided.")
+            print(f"DEBUG: TypeError in function call: {str(te)}. Check if the correct number of arguments were provided.")
         except Exception as e:
-            print(f"Unexpected error in function call: {str(e)}")
+            print(f"DEBUG: Unexpected error in function call: {str(e)}")
         finally:
-            print(f"Exiting handle_function_call")
+            print(f"DEBUG: Exiting handle_function_call")
 
     def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
         """Handle list operations (create, append, remove, get)."""
