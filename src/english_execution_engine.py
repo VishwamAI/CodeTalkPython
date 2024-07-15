@@ -892,3 +892,36 @@ def handle_interface(self, operation: str, interface_name: str, **kwargs):
         print(f"Class '{kwargs['class_name']}' now implements interface '{interface_name}'")
     else:
         raise ValueError(f"Unknown interface operation: {operation}")
+
+def handle_file_management(self, operation: str, path: str, new_path: str = None, content: str = None):
+    """Handle file management operations (create, delete, move, copy, read, write)."""
+    import os
+    import shutil
+
+    try:
+        if operation == "create":
+            with open(path, 'w') as f:
+                if content:
+                    f.write(content)
+            print(f"Created file: {path}")
+        elif operation == "delete":
+            os.remove(path)
+            print(f"Deleted file: {path}")
+        elif operation == "move":
+            shutil.move(path, new_path)
+            print(f"Moved file from {path} to {new_path}")
+        elif operation == "copy":
+            shutil.copy2(path, new_path)
+            print(f"Copied file from {path} to {new_path}")
+        elif operation == "read":
+            with open(path, 'r') as f:
+                return f.read()
+        elif operation == "write":
+            with open(path, 'w') as f:
+                f.write(content)
+            print(f"Wrote content to file: {path}")
+        else:
+            raise ValueError(f"Unknown file management operation: {operation}")
+    except Exception as e:
+        print(f"Error in file management operation: {str(e)}")
+        return str(e)
