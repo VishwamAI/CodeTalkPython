@@ -359,10 +359,13 @@ class EnglishExecutionEngine:
                 parsed_instruction['return_expression']
             )
         elif operation == 'function_call':
-            return self.handle_function_call(
-                parsed_instruction['name'],
-                parsed_instruction['arguments']
+            result = self.handle_function_call(
+                parsed_instruction['function_name'],
+                parsed_instruction['arg1'],
+                parsed_instruction['arg2']
             )
+            self.variables[parsed_instruction['result_var']] = result
+            return result
         elif operation == 'list_operation':
             return self.handle_list_operation(
                 parsed_instruction['list_operation'],
@@ -560,14 +563,14 @@ class EnglishExecutionEngine:
         except Exception as e:
             print(f"Error in function definition: {str(e)}")
 
-    def handle_function_call(self, name: str, arguments: List[Any]) -> Any:
+    def handle_function_call(self, name: str, arg1: int, arg2: int) -> Any:
         """Execute function calls."""
         try:
             if name not in self.functions:
                 raise ValueError(f"Function '{name}' is not defined.")
 
-            result = self.functions[name](*arguments)
-            print(f"Function '{name}' called with arguments: {', '.join(map(str, arguments))}")
+            result = self.functions[name](arg1, arg2)
+            print(f"Function '{name}' called with arguments: {arg1}, {arg2}")
             print(f"Result: {result}")
             return result
         except Exception as e:
