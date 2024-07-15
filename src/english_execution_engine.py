@@ -1,11 +1,15 @@
 import re
 import ast
-from typing import Any, Dict, List, Union
+import types
+from typing import Any, Dict, List, Union, Optional
+from .language_templates import LanguageTemplates
 
 class EnglishExecutionEngine:
     def __init__(self):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, callable] = {}
+        self.language_templates = LanguageTemplates()
+        self.current_language = 'python'  # Default language
 
     def parse_instruction(self, instruction: str) -> Dict[str, Any]:
         """Parse English instructions into executable operations."""
@@ -118,6 +122,100 @@ class EnglishExecutionEngine:
                 'command': match.group(1)
             }
 
+        # Stack operations
+        elif match := re.match(r"(Create|Push|Pop|Peek) (?:a )?stack (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+            return {
+                'operation': 'stack_operation',
+                'stack_operation': match.group(1).lower(),
+                'stack_name': match.group(2),
+                'item': self._parse_value(match.group(3)) if match.group(3) else None
+            }
+
+        # Queue operations
+        elif match := re.match(r"(Create|Enqueue|Dequeue|Peek) (?:a )?queue (?:named )?'(\w+)'(?: (?:with|item) (.+))?", instruction):
+            return {
+                'operation': 'queue_operation',
+                'queue_operation': match.group(1).lower(),
+                'queue_name': match.group(2),
+                'item': self._parse_value(match.group(3)) if match.group(3) else None
+            }
+
+        # Class operations
+        elif match := re.match(r"Create a class named (\w+)", instruction):
+            return {
+                'operation': 'class_operation',
+                'class_operation': 'create',
+                'class_name': match.group(1)
+            }
+        elif match := re.match(r"Add attribute (\w+) to (\w+)", instruction):
+            return {
+                'operation': 'class_operation',
+                'class_operation': 'add_attribute',
+                'class_name': match.group(2),
+                'attribute_name': match.group(1)
+            }
+        elif match := re.match(r"Add method (\w+) to (\w+) that takes (.*) and does (.*)", instruction):
+            return {
+                'operation': 'class_operation',
+                'class_operation': 'add_method',
+                'class_name': match.group(2),
+                'method_name': match.group(1),
+                'parameters': [param.strip() for param in match.group(3).split(',')],
+                'action': match.group(4)
+            }
+        # Object operations
+        elif match := re.match(r"Create a (\w+) object named (\w+)", instruction):
+            return {
+                'operation': 'object_operation',
+                'object_operation': 'create',
+                'class_name': match.group(1),
+                'object_name': match.group(2)
+            }
+        elif match := re.match(r"Set attribute '(\w+)' of '(\w+)' to '(.+)'", instruction):
+            return {
+                'operation': 'object_operation',
+                'object_operation': 'set_attribute',
+                'object_name': match.group(2),
+                'attribute_name': match.group(1),
+                'value': self._parse_value(match.group(3))
+            }
+        elif match := re.match(r"Get attribute '(\w+)' of '(\w+)'", instruction):
+            return {
+                'operation': 'object_operation',
+                'object_operation': 'get_attribute',
+                'object_name': match.group(2),
+                'attribute_name': match.group(1)
+            }
+        elif match := re.match(r"Call method '(\w+)' of '(\w+)' with arguments (.*)", instruction):
+            return {
+                'operation': 'object_operation',
+                'object_operation': 'call_method',
+                'object_name': match.group(2),
+                'method_name': match.group(1),
+                'arguments': [self._parse_value(arg.strip()) for arg in match.group(3).split(',')]
+            }
+        # Inheritance
+        elif match := re.match(r"Create class (\w+) inheriting from (\w+)", instruction):
+            return {
+                'operation': 'inheritance',
+                'subclass_name': match.group(1),
+                'superclass_name': match.group(2)
+            }
+        # Interface
+        elif match := re.match(r"Create interface (\w+) with methods (.*)", instruction):
+            return {
+                'operation': 'interface',
+                'interface_operation': 'create',
+                'interface_name': match.group(1),
+                'methods': [method.strip() for method in match.group(2).split(',')]
+            }
+        elif match := re.match(r"Implement interface (\w+) in class (\w+)", instruction):
+            return {
+                'operation': 'interface',
+                'interface_operation': 'implement',
+                'interface_name': match.group(1),
+                'class_name': match.group(2)
+            }
         else:
             raise ValueError(f"Unrecognized instruction: {instruction}")
 
@@ -131,6 +229,15 @@ class EnglishExecutionEngine:
     def execute_instruction(self, parsed_instruction: Dict[str, Any]) -> Any:
         """Execute the parsed instructions."""
         operation = parsed_instruction['operation']
+
+        # Get the appropriate template
+        template = self.language_templates.get_template(self.current_language, operation)
+
+        # Fill the template with the parsed instruction data
+        if template:
+            code_snippet = self.language_templates.fill_template(template, **parsed_instruction)
+            print(f"Generated code snippet: {code_snippet}")
+            # TODO: Execute or return the code snippet as needed
 
         if operation == 'variable_management':
             return self.handle_variable_management(
@@ -207,6 +314,42 @@ class EnglishExecutionEngine:
         elif operation == 'system_operation':
             return self.handle_system_operation(
                 parsed_instruction['command']
+            )
+        elif operation == 'stack_operation':
+            return self.handle_stack_operation(
+                parsed_instruction['stack_operation'],
+                parsed_instruction['stack_name'],
+                parsed_instruction.get('item')
+            )
+        elif operation == 'queue_operation':
+            return self.handle_queue_operation(
+                parsed_instruction['queue_operation'],
+                parsed_instruction['queue_name'],
+                parsed_instruction.get('item')
+            )
+        elif operation == 'class_operation':
+            return self.handle_class_operation(
+                parsed_instruction['class_operation'],
+                parsed_instruction['class_name'],
+                **{k: v for k, v in parsed_instruction.items() if k not in ['operation', 'class_operation', 'class_name']}
+            )
+        elif operation == 'object_operation':
+            return self.handle_object_operation(
+                parsed_instruction['object_operation'],
+                parsed_instruction['class_name'],
+                parsed_instruction['object_name'],
+                **{k: v for k, v in parsed_instruction.items() if k not in ['operation', 'object_operation', 'class_name', 'object_name']}
+            )
+        elif operation == 'inheritance':
+            return self.handle_inheritance(
+                parsed_instruction['subclass_name'],
+                parsed_instruction['superclass_name']
+            )
+        elif operation == 'interface':
+            return self.handle_interface(
+                parsed_instruction['interface_operation'],
+                parsed_instruction['interface_name'],
+                **{k: v for k, v in parsed_instruction.items() if k not in ['operation', 'interface_operation', 'interface_name']}
             )
         else:
             raise ValueError(f"Unknown operation: {operation}")
@@ -542,9 +685,195 @@ class EnglishExecutionEngine:
         else:
             raise ValueError(f"Unknown input/output operation: {operation}")
 
+    def handle_stack_operation(self, operation: str, stack_name: str, item: Any = None) -> Any:
+        """Handle stack operations (create, push, pop, peek)."""
+        try:
+            if operation == "create":
+                self.variables[stack_name] = []
+                print(f"Created a new stack '{stack_name}'")
+            elif operation == "push":
+                if stack_name not in self.variables:
+                    raise ValueError(f"Stack '{stack_name}' does not exist")
+                self.variables[stack_name].append(item)
+                print(f"Pushed {item} onto stack '{stack_name}'")
+            elif operation == "pop":
+                if stack_name not in self.variables:
+                    raise ValueError(f"Stack '{stack_name}' does not exist")
+                if not self.variables[stack_name]:
+                    raise IndexError(f"Stack '{stack_name}' is empty")
+                item = self.variables[stack_name].pop()
+                print(f"Popped {item} from stack '{stack_name}'")
+                return item
+            elif operation == "peek":
+                if stack_name not in self.variables:
+                    raise ValueError(f"Stack '{stack_name}' does not exist")
+                if not self.variables[stack_name]:
+                    raise IndexError(f"Stack '{stack_name}' is empty")
+                return self.variables[stack_name][-1]
+            else:
+                raise ValueError(f"Unknown stack operation: {operation}")
+        except Exception as e:
+            print(f"Error in stack operation: {str(e)}")
+
+    def handle_queue_operation(self, operation: str, queue_name: str, item: Any = None) -> Any:
+        """Handle queue operations (create, enqueue, dequeue, peek)."""
+        try:
+            if operation == "create":
+                self.variables[queue_name] = []
+                print(f"Created a new queue '{queue_name}'")
+            elif operation == "enqueue":
+                if queue_name not in self.variables:
+                    raise ValueError(f"Queue '{queue_name}' does not exist")
+                self.variables[queue_name].append(item)
+                print(f"Enqueued {item} to queue '{queue_name}'")
+            elif operation == "dequeue":
+                if queue_name not in self.variables:
+                    raise ValueError(f"Queue '{queue_name}' does not exist")
+                if not self.variables[queue_name]:
+                    raise IndexError(f"Queue '{queue_name}' is empty")
+                item = self.variables[queue_name].pop(0)
+                print(f"Dequeued {item} from queue '{queue_name}'")
+                return item
+            elif operation == "peek":
+                if queue_name not in self.variables:
+                    raise ValueError(f"Queue '{queue_name}' does not exist")
+                if not self.variables[queue_name]:
+                    raise IndexError(f"Queue '{queue_name}' is empty")
+                return self.variables[queue_name][0]
+            else:
+                raise ValueError(f"Unknown queue operation: {operation}")
+        except Exception as e:
+            print(f"Error in queue operation: {str(e)}")
+
 def main():
     engine = EnglishExecutionEngine()
     # TODO: Add example usage of the EnglishExecutionEngine
 
 if __name__ == "__main__":
     main()
+def set_language(self, language: str):
+    if language in ['python', 'c', 'java']:
+        self.current_language = language
+        print(f"Switched to {language} mode")
+    else:
+        raise ValueError(f"Unsupported language: {language}")
+
+def execute_code_snippet(self, code_snippet: str, language: str) -> str:
+    import subprocess
+    import tempfile
+    import os
+
+    if language not in ['python', 'c', 'java']:
+        raise ValueError(f"Unsupported language: {language}")
+
+    if language == 'python':
+        try:
+            exec_globals = {}
+            exec(code_snippet, exec_globals)
+            return str(exec_globals.get('__builtins__', {}).get('_', None))
+        except Exception as e:
+            return f"Error executing Python code: {str(e)}"
+
+    elif language == 'c':
+        with tempfile.NamedTemporaryFile(suffix='.c', mode='w+', delete=False) as temp_file:
+            temp_file.write(code_snippet)
+            temp_file_path = temp_file.name
+
+        try:
+            compile_process = subprocess.run(['gcc', temp_file_path, '-o', f'{temp_file_path}.out'],
+                                             capture_output=True, text=True, check=True)
+            run_process = subprocess.run([f'{temp_file_path}.out'],
+                                         capture_output=True, text=True, check=True)
+            return run_process.stdout
+        except subprocess.CalledProcessError as e:
+            return f"Error compiling/running C code: {e.stderr}"
+        finally:
+            os.remove(temp_file_path)
+            if os.path.exists(f'{temp_file_path}.out'):
+                os.remove(f'{temp_file_path}.out')
+
+    elif language == 'java':
+        class_name = 'TempClass'
+        full_code = f"public class {class_name} {{ public static void main(String[] args) {{ {code_snippet} }} }}"
+
+        with tempfile.NamedTemporaryFile(suffix='.java', mode='w+', delete=False) as temp_file:
+            temp_file.write(full_code)
+            temp_file_path = temp_file.name
+
+        try:
+            compile_process = subprocess.run(['javac', temp_file_path],
+                                             capture_output=True, text=True, check=True)
+            run_process = subprocess.run(['java', '-cp', os.path.dirname(temp_file_path), class_name],
+                                         capture_output=True, text=True, check=True)
+            return run_process.stdout
+        except subprocess.CalledProcessError as e:
+            return f"Error compiling/running Java code: {e.stderr}"
+        finally:
+            os.remove(temp_file_path)
+            class_file = f"{os.path.splitext(temp_file_path)[0]}.class"
+            if os.path.exists(class_file):
+                os.remove(class_file)
+
+def handle_class_operation(self, operation: str, class_name: str, **kwargs):
+    if operation == "create":
+        self.variables[class_name] = type(class_name, (), {})
+        print(f"Created class '{class_name}'")
+    elif operation == "add_attribute":
+        if class_name not in self.variables:
+            raise ValueError(f"Class '{class_name}' does not exist")
+        setattr(self.variables[class_name], kwargs['attribute_name'], None)
+        print(f"Added attribute '{kwargs['attribute_name']}' to class '{class_name}'")
+    elif operation == "add_method":
+        if class_name not in self.variables:
+            raise ValueError(f"Class '{class_name}' does not exist")
+        method_code = f"def {kwargs['method_name']}(self, {', '.join(kwargs['parameters'])}):\n    {kwargs['action']}"
+        exec(method_code)
+        setattr(self.variables[class_name], kwargs['method_name'], locals()[kwargs['method_name']])
+        print(f"Added method '{kwargs['method_name']}' to class '{class_name}'")
+    else:
+        raise ValueError(f"Unknown class operation: {operation}")
+
+def handle_object_operation(self, operation: str, class_name: str, object_name: str, **kwargs):
+    if operation == "create":
+        if class_name not in self.variables:
+            raise ValueError(f"Class '{class_name}' does not exist")
+        self.variables[object_name] = self.variables[class_name]()
+        print(f"Created object '{object_name}' of class '{class_name}'")
+    elif operation == "set_attribute":
+        if object_name not in self.variables:
+            raise ValueError(f"Object '{object_name}' does not exist")
+        setattr(self.variables[object_name], kwargs['attribute_name'], kwargs['value'])
+        print(f"Set attribute '{kwargs['attribute_name']}' of '{object_name}' to {kwargs['value']}")
+    elif operation == "get_attribute":
+        if object_name not in self.variables:
+            raise ValueError(f"Object '{object_name}' does not exist")
+        return getattr(self.variables[object_name], kwargs['attribute_name'])
+    elif operation == "call_method":
+        if object_name not in self.variables:
+            raise ValueError(f"Object '{object_name}' does not exist")
+        method = getattr(self.variables[object_name], kwargs['method_name'])
+        return method(*kwargs['arguments'])
+    else:
+        raise ValueError(f"Unknown object operation: {operation}")
+
+def handle_inheritance(self, subclass_name: str, superclass_name: str):
+    if superclass_name not in self.variables:
+        raise ValueError(f"Superclass '{superclass_name}' does not exist")
+    self.variables[subclass_name] = type(subclass_name, (self.variables[superclass_name],), {})
+    print(f"Created subclass '{subclass_name}' inheriting from '{superclass_name}'")
+
+def handle_interface(self, operation: str, interface_name: str, **kwargs):
+    if operation == "create":
+        self.variables[interface_name] = type(interface_name, (), {method: None for method in kwargs['methods']})
+        print(f"Created interface '{interface_name}' with methods {', '.join(kwargs['methods'])}")
+    elif operation == "implement":
+        if interface_name not in self.variables:
+            raise ValueError(f"Interface '{interface_name}' does not exist")
+        if kwargs['class_name'] not in self.variables:
+            raise ValueError(f"Class '{kwargs['class_name']}' does not exist")
+        for method in self.variables[interface_name].__dict__:
+            if method not in self.variables[kwargs['class_name']].__dict__:
+                raise ValueError(f"Class '{kwargs['class_name']}' does not implement method '{method}' from interface '{interface_name}'")
+        print(f"Class '{kwargs['class_name']}' now implements interface '{interface_name}'")
+    else:
+        raise ValueError(f"Unknown interface operation: {operation}")
