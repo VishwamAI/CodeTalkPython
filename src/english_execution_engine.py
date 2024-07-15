@@ -580,17 +580,12 @@ class EnglishExecutionEngine:
             # Ensure parameters is a list of individual parameter names
             param_list = [param.strip() for param in ' '.join(parameters).split(',')]
 
-            def function(**kwargs):
-                print(f"DEBUG: Executing function '{name}' with arguments: {kwargs}")
-                if set(kwargs.keys()) != set(param_list):
-                    raise ValueError(f"Expected parameters {param_list}, got {list(kwargs.keys())}")
-                for param, arg in kwargs.items():
-                    self.variables[param] = arg
-                result = eval(return_expression, {}, self.variables)
-                print(f"DEBUG: Function '{name}' returned: {result}")
-                return result
+            # Store the English description of the function's behavior
+            self.functions[name] = {
+                'parameters': param_list,
+                'return_expression': return_expression
+            }
 
-            self.functions[name] = function
             self.function_parameters[name] = param_list  # Store parameter names as a list
             print(f"DEBUG: Function '{name}' has been defined and stored with parameters: {param_list}")
             print(f"Function '{name}' has been defined with parameters: {', '.join(param_list)}")
@@ -606,22 +601,30 @@ class EnglishExecutionEngine:
                 print(f"DEBUG: Function '{name}' is not defined.")
                 raise ValueError(f"Function '{name}' is not defined.")
 
-            func = self.functions[name]
-            expected_params = self.function_parameters[name]
+            func_info = self.functions[name]
+            expected_params = func_info['parameters']
+            return_expression = func_info['return_expression']
             print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
 
             # Create a dictionary of parameter names and their corresponding argument values
-            kwargs = {}
             for i, param in enumerate(expected_params):
                 if i < len(args):
-                    kwargs[param] = args[i]
+                    self.variables[param] = args[i]
                 else:
-                    kwargs[param] = None  # or some default value
-            print(f"DEBUG: Calling function '{name}' with keyword arguments: {kwargs}")
+                    self.variables[param] = None  # or some default value
 
-            # Call the function with keyword arguments
-            result = func(**kwargs)
-            print(f"DEBUG: Function '{name}' called successfully")
+            print(f"DEBUG: Executing function '{name}' with return expression: {return_expression}")
+
+            # Interpret and execute the return expression
+            if 'plus' in return_expression:
+                operands = return_expression.split('plus')
+                left = self.variables[operands[0].strip().strip("'")]
+                right = self.variables[operands[1].strip().strip("'")]
+                result = left + right
+            else:
+                raise ValueError(f"Unsupported operation in function '{name}'")
+
+            print(f"DEBUG: Function '{name}' executed successfully")
             print(f"DEBUG: Result: {result}")
             return result
         except ValueError as ve:
