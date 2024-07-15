@@ -751,13 +751,68 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 def set_language(self, language: str):
     if language in ['python', 'c', 'java']:
         self.current_language = language
         print(f"Switched to {language} mode")
     else:
         raise ValueError(f"Unsupported language: {language}")
+
+def execute_code_snippet(self, code_snippet: str, language: str) -> str:
+    import subprocess
+    import tempfile
+    import os
+
+    if language not in ['python', 'c', 'java']:
+        raise ValueError(f"Unsupported language: {language}")
+
+    if language == 'python':
+        try:
+            exec_globals = {}
+            exec(code_snippet, exec_globals)
+            return str(exec_globals.get('__builtins__', {}).get('_', None))
+        except Exception as e:
+            return f"Error executing Python code: {str(e)}"
+
+    elif language == 'c':
+        with tempfile.NamedTemporaryFile(suffix='.c', mode='w+', delete=False) as temp_file:
+            temp_file.write(code_snippet)
+            temp_file_path = temp_file.name
+
+        try:
+            compile_process = subprocess.run(['gcc', temp_file_path, '-o', f'{temp_file_path}.out'],
+                                             capture_output=True, text=True, check=True)
+            run_process = subprocess.run([f'{temp_file_path}.out'],
+                                         capture_output=True, text=True, check=True)
+            return run_process.stdout
+        except subprocess.CalledProcessError as e:
+            return f"Error compiling/running C code: {e.stderr}"
+        finally:
+            os.remove(temp_file_path)
+            if os.path.exists(f'{temp_file_path}.out'):
+                os.remove(f'{temp_file_path}.out')
+
+    elif language == 'java':
+        class_name = 'TempClass'
+        full_code = f"public class {class_name} {{ public static void main(String[] args) {{ {code_snippet} }} }}"
+
+        with tempfile.NamedTemporaryFile(suffix='.java', mode='w+', delete=False) as temp_file:
+            temp_file.write(full_code)
+            temp_file_path = temp_file.name
+
+        try:
+            compile_process = subprocess.run(['javac', temp_file_path],
+                                             capture_output=True, text=True, check=True)
+            run_process = subprocess.run(['java', '-cp', os.path.dirname(temp_file_path), class_name],
+                                         capture_output=True, text=True, check=True)
+            return run_process.stdout
+        except subprocess.CalledProcessError as e:
+            return f"Error compiling/running Java code: {e.stderr}"
+        finally:
+            os.remove(temp_file_path)
+            class_file = f"{os.path.splitext(temp_file_path)[0]}.class"
+            if os.path.exists(class_file):
+                os.remove(class_file)
 
 def handle_class_operation(self, operation: str, class_name: str, **kwargs):
     if operation == "create":
