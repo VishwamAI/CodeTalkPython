@@ -589,21 +589,25 @@ class EnglishExecutionEngine:
             print(f"Error in function definition: {str(e)}")
 
     def handle_function_call(self, name: str, *args) -> Any:
-        """Execute function calls."""
+        """Execute function calls with variable arguments."""
         print(f"Entering handle_function_call with name: {name}, args: {args}")
         try:
             if name not in self.functions:
                 raise ValueError(f"Function '{name}' is not defined.")
 
             result = self.functions[name](*args)
-            print(f"Function '{name}' called with arguments: {args}")
+            print(f"Function '{name}' called successfully with arguments: {args}")
             print(f"Result: {result}")
-            print(f"Exiting handle_function_call, returning result: {result}")
             return result
+        except ValueError as ve:
+            print(f"ValueError in function call: {str(ve)}")
+        except TypeError as te:
+            print(f"TypeError in function call: {str(te)}. Check if the correct number of arguments were provided.")
         except Exception as e:
-            print(f"Error in function call: {str(e)}")
-            print(f"Exiting handle_function_call due to error")
-            return None
+            print(f"Unexpected error in function call: {str(e)}")
+        finally:
+            print(f"Exiting handle_function_call")
+        return None
 
     def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
         """Handle list operations (create, append, remove, get)."""
