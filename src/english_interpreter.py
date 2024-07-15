@@ -3,6 +3,7 @@ from execution_engine import ExecutionEngine
 from output_generator import OutputGenerator
 from intent_recognizer import IntentRecognizer
 from input_processor import InputProcessor
+from langchain_community.embeddings import OllamaEmbeddings
 
 class EnglishInterpreter:
     def __init__(self):
@@ -15,6 +16,7 @@ class EnglishInterpreter:
         self.data_structures = {}  # Dictionary to store complex data structures
         self.algorithms = {}  # Dictionary to store implemented algorithms
         self.current_scope = {}  # Initialize current_scope
+        self.embeddings = OllamaEmbeddings()  # Instantiate OllamaEmbeddings
 
     def main_driver(self, english_instruction=None, test_file=None):
         if test_file:
