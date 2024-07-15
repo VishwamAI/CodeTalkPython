@@ -8,12 +8,12 @@ class EnglishExecutionEngine:
     def __init__(self):
         self.variables: Dict[str, Any] = {}
         self.functions: Dict[str, callable] = {}
+        self.function_parameters: Dict[str, List[str]] = {}  # New attribute to store function parameters
         self.language_templates = LanguageTemplates()
         self.current_language = 'python'  # Default language
         self.simulated_database = {}
         self.simulated_apps = {}  # Dictionary to store simulated apps
         self.defined_functions = {}  # Dictionary to store user-defined functions
-
     def process_database_instruction(self, instruction: str) -> str:
         """Process natural language database instructions."""
         words = instruction.lower().split()
@@ -577,18 +577,19 @@ class EnglishExecutionEngine:
         """Define functions based on English instructions."""
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
-            def function(*args):
-                print(f"DEBUG: Executing function '{name}' with arguments: {args}")
-                if len(args) != len(parameters):
-                    raise ValueError(f"Expected {len(parameters)} arguments, got {len(args)}")
-                for param, arg in zip(parameters, args):
+            def function(**kwargs):
+                print(f"DEBUG: Executing function '{name}' with arguments: {kwargs}")
+                if set(kwargs.keys()) != set(parameters):
+                    raise ValueError(f"Expected parameters {parameters}, got {kwargs.keys()}")
+                for param, arg in kwargs.items():
                     self.variables[param] = arg
                 result = eval(return_expression, {}, self.variables)
                 print(f"DEBUG: Function '{name}' returned: {result}")
                 return result
 
             self.functions[name] = function
-            print(f"DEBUG: Function '{name}' has been defined and stored in self.functions")
+            self.function_parameters[name] = parameters  # Store parameter names
+            print(f"DEBUG: Function '{name}' has been defined and stored with parameters: {parameters}")
             print(f"Function '{name}' has been defined with parameters: {', '.join(parameters)}")
         except Exception as e:
             print(f"DEBUG: Error in function definition for '{name}': {str(e)}")
@@ -603,13 +604,14 @@ class EnglishExecutionEngine:
                 raise ValueError(f"Function '{name}' is not defined.")
 
             func = self.functions[name]
-            expected_args = func.__code__.co_argcount
-            print(f"DEBUG: Expected {expected_args} arguments, got {len(args)}")
-            if expected_args != len(args):
-                raise ValueError(f"Expected {expected_args} arguments, got {len(args)}")
+            expected_params = self.function_parameters[name]
+            print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
+            if len(expected_params) != len(args):
+                raise ValueError(f"Expected {len(expected_params)} arguments, got {len(args)}")
 
-            print(f"DEBUG: Calling function '{name}' with arguments: {args}")
-            result = func(*args)
+            kwargs = dict(zip(expected_params, args))
+            print(f"DEBUG: Calling function '{name}' with keyword arguments: {kwargs}")
+            result = func(**kwargs)
             print(f"DEBUG: Function '{name}' called successfully")
             print(f"DEBUG: Result: {result}")
             return result
