@@ -1,4 +1,5 @@
 import nltk
+import re
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
@@ -34,20 +35,49 @@ class IntentRecognizer:
         self.stop_words = set(stopwords.words('english'))
         self.lemmatizer = WordNetLemmatizer()
         self.sia = SentimentIntensityAnalyzer()
-        self.language_keywords = {
-            'c': ['printf', 'scanf', 'malloc', 'free', 'struct', 'typedef'],
-            'cpp': ['cout', 'cin', 'vector', 'class', 'namespace', 'template'],
-            'python': ['def', 'class', 'import', 'from', 'with', 'as'],
-            'java': ['public', 'private', 'class', 'interface', 'extends', 'implements']
+        self.language_specific_patterns = {
+            'c': [
+                (r'\bprintf\s*\(', 'print_statement'),
+                (r'\bscanf\s*\(', 'input_statement'),
+                (r'\bmalloc\s*\(', 'memory_allocation'),
+                (r'\bfree\s*\(', 'memory_deallocation'),
+                (r'\bstruct\s+\w+', 'struct_definition'),
+                (r'\btypedef\s+', 'type_definition')
+            ],
+            'cpp': [
+                (r'\bcout\s*<<', 'print_statement'),
+                (r'\bcin\s*>>', 'input_statement'),
+                (r'\bvector<', 'vector_usage'),
+                (r'\bclass\s+\w+', 'class_definition'),
+                (r'\bnamespace\s+\w+', 'namespace_definition'),
+                (r'\btemplate\s*<', 'template_usage')
+            ],
+            'python': [
+                (r'\bprint\s*\(', 'print_statement'),
+                (r'\binput\s*\(', 'input_statement'),
+                (r'\bdef\s+\w+\s*\(', 'function_definition'),
+                (r'\bclass\s+\w+', 'class_definition'),
+                (r'\bimport\s+', 'import_statement'),
+                (r'\bfrom\s+\w+\s+import', 'from_import_statement')
+            ],
+            'java': [
+                (r'\bSystem\.out\.println\s*\(', 'print_statement'),
+                (r'\bScanner\s+\w+\s*=', 'input_statement'),
+                (r'\bpublic\s+class\s+\w+', 'class_definition'),
+                (r'\bprivate\s+\w+\s+\w+', 'private_member'),
+                (r'\binterface\s+\w+', 'interface_definition'),
+                (r'\bextends\s+\w+', 'class_inheritance')
+            ]
         }
 
-    def recognize_intent(self, intent_data, context):
+    def recognize_intent(self, intent_data, context, language='generic'):
         """
         Recognize the intent from the intent_data and context using semantic analysis.
 
         Args:
             intent_data (dict): The processed input data.
             context (dict): The context information.
+            language (str): The programming language to consider for intent recognition.
 
         Returns:
             dict: A dictionary containing the recognized intent, confidence score, and relevant entities.
@@ -56,22 +86,24 @@ class IntentRecognizer:
         annotations = self._get_corenlp_annotations(text)
 
         semantic_intent = self._analyze_semantic_intent(annotations)
-        language = self.recognize_language_specific_intent(annotations)
+        matched_intent = self._match_intent(annotations['sentences'][0]['tokens'], language)
         confidence_score = self._calculate_confidence(semantic_intent, annotations, language)
         relevant_entities = self._extract_relevant_entities(annotations, semantic_intent)
 
         return {
             'primary_intent': semantic_intent,
+            'matched_intent': matched_intent,
             'language': language,
             'confidence_score': confidence_score,
             'relevant_entities': relevant_entities
         }
 
-    def recognize_language_specific_intent(self, annotations):
-        tokens = [token['word'].lower() for token in annotations['sentences'][0]['tokens']]
-        for language, keywords in self.language_keywords.items():
-            if any(keyword in tokens for keyword in keywords):
-                return language
+    def _match_intent(self, tokens, language):
+        instruction = ' '.join(tokens)
+        if language in self.language_specific_patterns:
+            for pattern, intent in self.language_specific_patterns[language]:
+                if re.search(pattern, instruction):
+                    return intent
         return 'generic'
 
     def _analyze_semantic_intent(self, annotations):
@@ -163,9 +195,11 @@ class IntentRecognizer:
         sentiment_scores = self.sia.polarity_scores(text)
         sentiment_intensity = sentiment_scores['compound']
 
+        matched_intent = self._match_intent([token['word'] for token in tokens], language)
         language_score = self._calculate_language_specific_confidence(tokens, language)
+        intent_match_score = 1.0 if matched_intent != 'generic' else 0.5
 
-        confidence = (dep_score * 0.5) + (abs(sentiment_intensity) * 0.2) + (language_score * 0.3)
+        confidence = (dep_score * 0.4) + (abs(sentiment_intensity) * 0.2) + (language_score * 0.2) + (intent_match_score * 0.2)
         return min(confidence, 1.0)
 
     def _extract_relevant_entities(self, annotations, intent):
@@ -198,40 +232,27 @@ class IntentRecognizer:
 
         return relevant_entities
 
-    def recognize_c_intent(self, tokens, context):
-        c_specific_keywords = ['pointer', 'memory', 'allocation', 'struct', 'union', 'typedef']
-        if any(keyword in tokens for keyword in c_specific_keywords):
-            return 'c_specific'
+    def _match_intent(self, tokens, language):
+        instruction = ' '.join(tokens)
+        if language in self.language_specific_patterns:
+            for pattern, intent in self.language_specific_patterns[language]:
+                if re.search(pattern, instruction):
+                    return intent
         return 'generic'
 
-    def recognize_cpp_intent(self, tokens, context):
-        cpp_specific_keywords = ['object', 'inheritance', 'polymorphism', 'encapsulation', 'template']
-        if any(keyword in tokens for keyword in cpp_specific_keywords):
-            return 'cpp_specific'
-        return 'generic'
-
-    def recognize_python_intent(self, tokens, context):
-        python_specific_keywords = ['list comprehension', 'generator', 'decorator', 'lambda', 'dictionary']
-        if any(keyword in tokens for keyword in python_specific_keywords):
-            return 'python_specific'
-        return 'generic'
-
-    def recognize_java_intent(self, tokens, context):
-        java_specific_keywords = ['interface', 'abstract class', 'package', 'garbage collection', 'jvm']
-        if any(keyword in tokens for keyword in java_specific_keywords):
-            return 'java_specific'
-        return 'generic'
+    def _extract_intent_data(self, tokens, matched_intent, language):
+        instruction = ' '.join(tokens)
+        if language in self.language_specific_patterns:
+            for pattern, intent in self.language_specific_patterns[language]:
+                if intent == matched_intent:
+                    match = re.search(pattern, instruction)
+                    if match:
+                        return match.group(0)
+        return None
 
     def _calculate_language_specific_confidence(self, tokens, language):
-        language_specific_keywords = {
-            'c': ['pointer', 'memory', 'allocation', 'struct', 'union', 'typedef'],
-            'cpp': ['object', 'inheritance', 'polymorphism', 'encapsulation', 'template'],
-            'python': ['list comprehension', 'generator', 'decorator', 'lambda', 'dictionary'],
-            'java': ['interface', 'abstract class', 'package', 'garbage collection', 'jvm']
-        }
-
-        if language in language_specific_keywords:
-            keywords = language_specific_keywords[language]
-            matches = sum(1 for keyword in keywords if keyword in tokens)
-            return min(matches / len(keywords), 1.0)
+        if language in self.language_specific_patterns:
+            patterns = self.language_specific_patterns[language]
+            matches = sum(1 for pattern, _ in patterns if any(re.search(pattern, token) for token in tokens))
+            return min(matches / len(patterns), 1.0)
         return 0.0
