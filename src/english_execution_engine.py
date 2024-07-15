@@ -578,7 +578,7 @@ class EnglishExecutionEngine:
         print(f"DEBUG: Defining function '{name}' with parameters: {parameters}")
         try:
             # Ensure parameters is a list of individual parameter names
-            param_list = [param.strip() for param in ' '.join(parameters).split(',')]
+            param_list = [param.strip() for param in ' '.join(parameters).split(',') if param.strip()]
 
             # Store the English description of the function's behavior
             self.functions[name] = {
@@ -614,6 +614,7 @@ class EnglishExecutionEngine:
                 else:
                     local_scope[param] = None  # or some default value
 
+            print(f"DEBUG: Local scope: {local_scope}")
             print(f"DEBUG: Executing function '{name}' with return expression: {return_expression}")
 
             # Interpret and execute the return expression using the local scope
@@ -623,7 +624,8 @@ class EnglishExecutionEngine:
                 right = local_scope[operands[1].strip().strip("'")]
                 result = left + right
             else:
-                raise ValueError(f"Unsupported operation in function '{name}'")
+                # Use eval with the local_scope to support more operations
+                result = eval(return_expression, {}, local_scope)
 
             print(f"DEBUG: Function '{name}' executed successfully")
             print(f"DEBUG: Result: {result}")
