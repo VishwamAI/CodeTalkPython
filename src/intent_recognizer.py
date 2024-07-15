@@ -8,6 +8,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
 import json
+from langchain import LLMChain, PromptTemplate
+from langchain.llms import Gemma  # or LLaMA
 
 class IntentRecognizer:
     """
@@ -69,6 +71,8 @@ class IntentRecognizer:
                 (r'\bextends\s+\w+', 'class_inheritance')
             ]
         }
+        self.llm = Gemma()  # or LLaMA()
+        self.intent_chain = LLMChain(llm=self.llm, prompt=self._create_intent_prompt())
 
     def recognize_intent(self, intent_data, context, language='generic'):
         """
@@ -83,15 +87,21 @@ class IntentRecognizer:
             dict: A dictionary containing the recognized intent, confidence score, and relevant entities.
         """
         text = intent_data['raw_text']
-        annotations = self._get_corenlp_annotations(text)
 
-        semantic_intent = self._analyze_semantic_intent(annotations)
-        matched_intent = self._match_intent(annotations['sentences'][0]['tokens'], language)
-        confidence_score = self._calculate_confidence(semantic_intent, annotations, language)
-        relevant_entities = self._extract_relevant_entities(annotations, semantic_intent)
+        # Use LangChain model for intent recognition
+        result = self.intent_chain.run(instruction=text)
+
+        # Parse the result and extract information
+        lines = result.strip().split('\n')
+        primary_intent = lines[0].split(':')[1].strip()
+        relevant_entities = self._parse_entities(lines[1])
+        confidence_score = float(lines[2].split(':')[1].strip())
+
+        # Use existing methods for language-specific matching
+        matched_intent = self._match_intent(word_tokenize(text), language)
 
         return {
-            'primary_intent': semantic_intent,
+            'primary_intent': primary_intent,
             'matched_intent': matched_intent,
             'language': language,
             'confidence_score': confidence_score,
@@ -108,9 +118,21 @@ class IntentRecognizer:
 
     def _analyze_semantic_intent(self, annotations):
         """
-        Analyze the semantic intent of the given text using CoreNLP annotations.
+        Analyze the semantic intent of the given text using LangChain and CoreNLP annotations.
         """
         tokens = annotations['sentences'][0]['tokens']
+        text = ' '.join(token['word'] for token in tokens)
+
+        # Use LangChain model for complex instructions
+        result = self.intent_chain.run(instruction=text)
+        lines = result.strip().split('\n')
+        langchain_intent = lines[0].split(':')[1].strip()
+
+        # If LangChain provides a clear intent, use it; otherwise, fall back to rule-based analysis
+        if langchain_intent != 'unknown':
+            return langchain_intent
+
+        # Existing rule-based analysis
         dependencies = annotations['sentences'][0]['basicDependencies']
 
         root_verb = next((token for dep in dependencies if dep['dep'] == 'ROOT' for token in tokens if token['index'] == dep['governor']), None)
