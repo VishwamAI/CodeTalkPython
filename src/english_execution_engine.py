@@ -365,8 +365,11 @@ class EnglishExecutionEngine:
                 parsed_instruction['arg1'],
                 parsed_instruction['arg2']
             )
-            self.variables[parsed_instruction['result_var']] = result
-            print(f"Function call result: {result}")
+            if 'result_var' in parsed_instruction:
+                self.variables[parsed_instruction['result_var']] = result
+                print(f"Function call result stored in variable '{parsed_instruction['result_var']}': {result}")
+            else:
+                print(f"Function call result: {result}")
             return result
         elif operation == 'list_operation':
             return self.handle_list_operation(
@@ -565,15 +568,15 @@ class EnglishExecutionEngine:
         except Exception as e:
             print(f"Error in function definition: {str(e)}")
 
-    def handle_function_call(self, name: str, arg1: int, arg2: int) -> Any:
+    def handle_function_call(self, name: str, *args) -> Any:
         """Execute function calls."""
-        print(f"Entering handle_function_call with name: {name}, arg1: {arg1}, arg2: {arg2}")
+        print(f"Entering handle_function_call with name: {name}, args: {args}")
         try:
             if name not in self.functions:
                 raise ValueError(f"Function '{name}' is not defined.")
 
-            result = self.functions[name](arg1, arg2)
-            print(f"Function '{name}' called with arguments: {arg1}, {arg2}")
+            result = self.functions[name](*args)
+            print(f"Function '{name}' called with arguments: {args}")
             print(f"Result: {result}")
             print(f"Exiting handle_function_call, returning result: {result}")
             return result
@@ -1414,16 +1417,16 @@ def parse_instruction(self, instruction: str) -> Dict[str, Any]:
             'operand2': match.group(1)
         }
 
-    # Function call
+    # Function call with assignment
     elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (\d+) and (\d+)", instruction):
         parsed = {
-            'operation': 'function_call',
+            'operation': 'function_call_with_assignment',
             'result_var': match.group(1),
             'function_name': match.group(2),
             'arg1': int(match.group(3)),
             'arg2': int(match.group(4))
         }
-        print(f"Parsed function call instruction: {parsed}")
+        print(f"Parsed function call with assignment instruction: {parsed}")
         return parsed
 
     # Control structures
