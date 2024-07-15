@@ -33,4 +33,5 @@ class LanguageTemplates:
 
     @staticmethod
     def fill_template(template: str, **kwargs) -> str:
+        kwargs.setdefault('params', [])
         return template.format(**kwargs)

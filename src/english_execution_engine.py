@@ -76,6 +76,25 @@ class EnglishExecutionEngine:
                 'operand2': match.group(4)
             }
 
+        # Simple variable assignment
+        elif match := re.match(r"set '(\w+)' to (\d+)", instruction):
+            return {
+                'operation': 'variable_management',
+                'action': 'set',
+                'name': match.group(1),
+                'value': int(match.group(2))
+            }
+
+        # Simple arithmetic operation
+        elif match := re.match(r"add '(\w+)' to '(\w+)'", instruction):
+            return {
+                'operation': 'arithmetic',
+                'result_var': match.group(2),
+                'operand1': match.group(2),
+                'operation_type': 'plus',
+                'operand2': match.group(1)
+            }
+
         # Control structures
         elif match := re.match(r"(If|While) '(\w+)' is (greater than|less than|equal to) (\d+), (.*?)(?:, otherwise (.*))?$", instruction):
             return {
@@ -299,10 +318,10 @@ class EnglishExecutionEngine:
 
         # Fill the template with the parsed instruction data
         if template:
+            parsed_instruction['params'] = parsed_instruction.get('params', [])
             code_snippet = self.language_templates.fill_template(template, **parsed_instruction)
             print(f"Generated code snippet: {code_snippet}")
             # TODO: Execute or return the code snippet as needed
-
         if operation == 'variable_management':
             return self.handle_variable_management(
                 parsed_instruction['action'],
