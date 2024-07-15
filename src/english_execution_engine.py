@@ -606,20 +606,21 @@ class EnglishExecutionEngine:
             return_expression = func_info['return_expression']
             print(f"DEBUG: Expected parameters: {expected_params}, got arguments: {args}")
 
-            # Create a dictionary of parameter names and their corresponding argument values
+            # Create a local scope for the function parameters
+            local_scope = {}
             for i, param in enumerate(expected_params):
                 if i < len(args):
-                    self.variables[param] = args[i]
+                    local_scope[param] = args[i]
                 else:
-                    self.variables[param] = None  # or some default value
+                    local_scope[param] = None  # or some default value
 
             print(f"DEBUG: Executing function '{name}' with return expression: {return_expression}")
 
-            # Interpret and execute the return expression
+            # Interpret and execute the return expression using the local scope
             if 'plus' in return_expression:
                 operands = return_expression.split('plus')
-                left = self.variables[operands[0].strip().strip("'")]
-                right = self.variables[operands[1].strip().strip("'")]
+                left = local_scope[operands[0].strip().strip("'")]
+                right = local_scope[operands[1].strip().strip("'")]
                 result = left + right
             else:
                 raise ValueError(f"Unsupported operation in function '{name}'")
