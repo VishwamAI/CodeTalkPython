@@ -988,3 +988,116 @@ def handle_system_configuration(self, operation: str, setting: str = None, value
     except Exception as e:
         print(f"Error in system configuration operation: {str(e)}")
         return str(e)
+
+def create_user(self, recognized_intent, context):
+    """Create a new user account."""
+    try:
+        username = recognized_intent.get('username')
+        if not username:
+            raise ValueError("Username is required to create a user")
+
+        import subprocess
+        result = subprocess.run(['sudo', 'useradd', username], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print(f"User '{username}' created successfully")
+        else:
+            raise Exception(f"Failed to create user: {result.stderr}")
+    except Exception as e:
+        print(f"Error creating user: {str(e)}")
+        return str(e)
+
+def set_network_config(self, recognized_intent, context):
+    """Set network configuration."""
+    try:
+        interface = recognized_intent.get('interface')
+        ip_address = recognized_intent.get('ip_address')
+        netmask = recognized_intent.get('netmask')
+        gateway = recognized_intent.get('gateway')
+
+        if not all([interface, ip_address, netmask, gateway]):
+            raise ValueError("Interface, IP address, netmask, and gateway are required")
+
+        import subprocess
+
+        # Disable the interface
+        subprocess.run(['sudo', 'ifconfig', interface, 'down'], check=True)
+
+        # Set the new IP address and netmask
+        subprocess.run(['sudo', 'ifconfig', interface, ip_address, 'netmask', netmask], check=True)
+
+        # Set the default gateway
+        subprocess.run(['sudo', 'route', 'add', 'default', 'gw', gateway, interface], check=True)
+
+        # Enable the interface
+        subprocess.run(['sudo', 'ifconfig', interface, 'up'], check=True)
+
+        print(f"Network configuration set for {interface}")
+    except Exception as e:
+        print(f"Error setting network configuration: {str(e)}")
+        return str(e)
+
+def install_package(self, recognized_intent, context):
+    """Install a software package."""
+    try:
+        package_name = recognized_intent.get('package_name')
+        if not package_name:
+            raise ValueError("Package name is required to install a package")
+
+        import subprocess
+        result = subprocess.run(['sudo', 'apt-get', 'install', '-y', package_name], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print(f"Package '{package_name}' installed successfully")
+        else:
+            raise Exception(f"Failed to install package: {result.stderr}")
+    except Exception as e:
+        print(f"Error installing package: {str(e)}")
+        return str(e)
+
+def configure_filesystem(self, recognized_intent, context):
+    """Configure the filesystem."""
+    try:
+        operation = recognized_intent.get('operation')
+        path = recognized_intent.get('path')
+
+        if not operation or not path:
+            raise ValueError("Operation and path are required to configure filesystem")
+
+        import os
+
+        if operation == 'create_directory':
+            os.makedirs(path, exist_ok=True)
+            print(f"Directory '{path}' created successfully")
+        elif operation == 'remove_directory':
+            os.rmdir(path)
+            print(f"Directory '{path}' removed successfully")
+        elif operation == 'create_file':
+            open(path, 'a').close()
+            print(f"File '{path}' created successfully")
+        elif operation == 'remove_file':
+            os.remove(path)
+            print(f"File '{path}' removed successfully")
+        else:
+            raise ValueError(f"Unknown filesystem operation: {operation}")
+    except Exception as e:
+        print(f"Error configuring filesystem: {str(e)}")
+        return str(e)
+
+def set_system_time(self, recognized_intent, context):
+    """Set the system time."""
+    try:
+        new_time = recognized_intent.get('new_time')
+        if not new_time:
+            raise ValueError("New time is required to set system time")
+
+        import subprocess
+        result = subprocess.run(['sudo', 'date', '-s', new_time], capture_output=True, text=True)
+
+        if result.returncode == 0:
+            print(f"System time set to {new_time}")
+        else:
+            raise Exception(f"Failed to set system time: {result.stderr}")
+    except Exception as e:
+        print(f"Error setting system time: {str(e)}")
+        return str(e)
