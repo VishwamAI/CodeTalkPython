@@ -359,12 +359,14 @@ class EnglishExecutionEngine:
                 parsed_instruction['return_expression']
             )
         elif operation == 'function_call':
+            print(f"Executing function call: {parsed_instruction}")
             result = self.handle_function_call(
                 parsed_instruction['function_name'],
                 parsed_instruction['arg1'],
                 parsed_instruction['arg2']
             )
             self.variables[parsed_instruction['result_var']] = result
+            print(f"Function call result: {result}")
             return result
         elif operation == 'list_operation':
             return self.handle_list_operation(
@@ -565,6 +567,7 @@ class EnglishExecutionEngine:
 
     def handle_function_call(self, name: str, arg1: int, arg2: int) -> Any:
         """Execute function calls."""
+        print(f"Entering handle_function_call with name: {name}, arg1: {arg1}, arg2: {arg2}")
         try:
             if name not in self.functions:
                 raise ValueError(f"Function '{name}' is not defined.")
@@ -572,9 +575,11 @@ class EnglishExecutionEngine:
             result = self.functions[name](arg1, arg2)
             print(f"Function '{name}' called with arguments: {arg1}, {arg2}")
             print(f"Result: {result}")
+            print(f"Exiting handle_function_call, returning result: {result}")
             return result
         except Exception as e:
             print(f"Error in function call: {str(e)}")
+            print(f"Exiting handle_function_call due to error")
             return None
 
     def handle_list_operation(self, operation: str, list_name: str, item: Any = None, index: int = None) -> Any:
@@ -1370,6 +1375,7 @@ def parse_app_type(self, instruction: str) -> str:
 
 def parse_instruction(self, instruction: str) -> Dict[str, Any]:
     """Parse English instructions into executable operations."""
+    print(f"Parsing instruction: {instruction}")  # Add this line
     # Variable management
     if match := re.match(r"(Create|Set|Get|Delete) (?:a )?variable (?:named )?'(\w+)'(?: (?:with|to) value (.+))?", instruction):
         return {
@@ -1410,13 +1416,15 @@ def parse_instruction(self, instruction: str) -> Dict[str, Any]:
 
     # Function call
     elif match := re.match(r"Set '(\w+)' to the result of calling '(\w+)' with (\d+) and (\d+)", instruction):
-        return {
+        parsed = {
             'operation': 'function_call',
             'result_var': match.group(1),
             'function_name': match.group(2),
             'arg1': int(match.group(3)),
             'arg2': int(match.group(4))
         }
+        print(f"Parsed function call instruction: {parsed}")
+        return parsed
 
     # Control structures
     elif match := re.match(r"(If|While) '(\w+)' is (greater than|less than|equal to) (\d+), (.*?)(?:, otherwise (.*))?$", instruction):
