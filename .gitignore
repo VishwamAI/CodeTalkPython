@@ -6,3 +6,6 @@ dataset/
 
 # Ignore transformers directory
 transformers/
+
+# Ignore backup files
+src/intent_recognizer_backup.py
